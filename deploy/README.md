@@ -34,6 +34,7 @@ The lobby is then at `BASE_URL` (port 8080). Players log in with Steam, create o
 | `RCON_PASSWORD_1`, `RCON_PASSWORD_2` | yes | RCON password of each CS2 server (must match `servers.json`). |
 | `ADMIN_STEAMIDS` | no | Comma-separated SteamID64s allowed to use `/admin` and abort any match. |
 | `STEAM_API_KEY` | no | Only for nicer names and avatars; the app works without it. |
+| `MATCH_MAX_MINUTES` | no | A match running longer than this is aborted automatically and its server freed. Default `180`. |
 | `DEV_LOGIN` | no | `1` enables the developer login. Default `0`. |
 
 `servers.json` must list the same servers as the compose file: `id` (matches the service name, e.g. `cs2-1`), display `name`, the LAN `host` players connect to, the game `port` and the `rcon_password`.
@@ -57,3 +58,11 @@ The pieces below could not be tested without a Linux host running CS2. Check the
 ## MatchZy payload fixtures
 
 `internal/matchzy/testdata/*.json` are currently **hand-written** in Get5's event style and marked `"_unverified": true`. To capture real ones: point `matchzy_remote_log_url` at a throwaway listener (for example `nc -l 9999`), load a minimal match config, play or bot a short match, and replace each fixture with a real body (drop the `_unverified` key). MatchZy version captured against: _not yet recorded_.
+
+## Security notes
+
+- **What a lobby host can influence on a CS2 server:** only the match settings (each number has an upper limit), the map pool (known maps only; custom map names are admin-only) and the players' names (cleaned before they reach the server). Hosts cannot pick a server or send commands. A match that runs longer than `MATCH_MAX_MINUTES` is aborted, and an idle server is locked with a random password and emptied (`kickall`) before the next match.
+- **Servers listen on your LAN.** RCON shares the game port (27015, 27016, ...), so anyone on the LAN who learns an RCON password controls that server. Use long random RCON passwords, never reuse them, and firewall the ports if the LAN is not trusted.
+- **`servers.json` must hold the same RCON passwords as `.env`.** The file in the repo has placeholders (`change-me-1`); replace them or the lobby cannot log in to the servers.
+- **Plain HTTP.** Login cookies and the webhook secret are not encrypted on the LAN. Put the lobby behind HTTPS if that matters to you.
+- **`DEV_LOGIN=1` lets anyone sign in as any SteamID.** Keep it off.

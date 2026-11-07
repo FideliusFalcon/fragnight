@@ -111,16 +111,19 @@ func TestStart_LoadsMatchAndSetsConnectString(t *testing.T) {
 	id := r.lobbyWith(t, 1)
 	r.o.Start(id, "de_dust2")
 
-	if r.rcon.count() != 2 {
+	if r.rcon.count() != 3 {
 		t.Fatalf("rcon calls: %+v", r.rcon.calls)
 	}
-	pwCall, loadCall := r.rcon.calls[0], r.rcon.calls[1]
+	if r.rcon.calls[0].cmd != "kickall" {
+		t.Fatalf("players of the previous match must be kicked first, got %+v", r.rcon.calls[0])
+	}
+	pwCall, loadCall := r.rcon.calls[1], r.rcon.calls[2]
 	if pwCall.server != "s1" || !strings.HasPrefix(pwCall.cmd, "sv_password ") {
 		t.Fatalf("first call %+v", pwCall)
 	}
 	password := strings.TrimPrefix(pwCall.cmd, "sv_password ")
-	if len(password) < 6 {
-		t.Fatalf("password too short: %q", password)
+	if len(password) < 16 {
+		t.Fatalf("match password too short (%d chars): %q", len(password), password)
 	}
 	if !strings.HasPrefix(loadCall.cmd, `matchzy_loadmatch_url "http://lan.local/internal/match/`) {
 		t.Fatalf("second call %+v", loadCall)
@@ -161,7 +164,7 @@ func TestStart_Twice_OnlyOneMatch(t *testing.T) {
 	id := r.lobbyWith(t, 1)
 	r.o.Start(id, "de_dust2")
 	r.o.Start(id, "de_dust2")
-	if r.rcon.count() != 2 {
+	if r.rcon.count() != 3 {
 		t.Fatalf("second Start launched again: %+v", r.rcon.calls)
 	}
 }
@@ -174,12 +177,12 @@ func TestStart_WhenPoolFull_ShowsAwaitingServerThenStartsOnRelease(t *testing.T)
 	r.o.Start(b, "de_nuke")
 
 	snapB, _ := r.lobbies.Get(b)
-	if snapB.Status != lobby.StatusAwaitingServer || r.rcon.count() != 2 {
+	if snapB.Status != lobby.StatusAwaitingServer || r.rcon.count() != 3 {
 		t.Fatalf("B status %s, rcon calls %d", snapB.Status, r.rcon.count())
 	}
 	r.o.ReleaseServer("s1")
 	snapB, _ = r.lobbies.Get(b)
-	if snapB.Status != lobby.StatusInMatch || !strings.HasPrefix(snapB.Connect, "connect 10.0.0.5:27015; password ") || r.rcon.count() != 4 {
+	if snapB.Status != lobby.StatusInMatch || !strings.HasPrefix(snapB.Connect, "connect 10.0.0.5:27015; password ") || r.rcon.count() != 6 {
 		t.Fatalf("B after release: status %s connect %q calls %d", snapB.Status, snapB.Connect, r.rcon.count())
 	}
 }
@@ -225,50 +228,95 @@ func TestLobbyGone_ForgetsQueuedLobby(t *testing.T) {
 	}
 }
 
-// abortOn makes the host abort the lobby the first time a command with the given prefix is sent.
-func abortOn(r *rig, lobbyID, prefix string) {
-	done := false
+// abortWhile starts Abort in another goroutine the first time a command with the
+// given prefix is sent, then lets the launch carry on. It returns a func that waits
+// for the abort and reports what the match looked like while the launch was
+// still in flight.
+func abortWhile(r *rig, lobbyID, prefix string) (wait func() (statusDuringLaunch string)) {
+	var (
+		once   sync.Once
+		done   = make(chan struct{})
+		during = make(chan string, 1)
+	)
 	r.rcon.onExec = func(c call) {
-		if !done && strings.HasPrefix(c.cmd, prefix) {
-			done = true
-			if err := r.o.Abort(lobbyID, steam(1)); err != nil {
-				panic(err)
-			}
+		if !strings.HasPrefix(c.cmd, prefix) {
+			return
 		}
+		once.Do(func() {
+			go func() {
+				defer close(done)
+				if err := r.o.Abort(lobbyID, steam(1)); err != nil {
+					panic(err)
+				}
+			}()
+			time.Sleep(60 * time.Millisecond) // give the abort time to start and block on the lobby lock
+			m, err := r.st.GetMatchOfLobby(context.Background(), lobbyID)
+			if err != nil {
+				during <- "error: " + err.Error()
+				return
+			}
+			during <- m.Status
+		})
+	}
+	return func() string {
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			panic("abort never finished (deadlock?)")
+		}
+		return <-during
 	}
 }
 
-func assertAbortedNotRevived(t *testing.T, r *rig, lobbyID string) {
+func assertEndedCleanly(t *testing.T, r *rig, lobbyID string) {
 	t.Helper()
 	snap, _ := r.lobbies.Get(lobbyID)
 	if snap.Status != lobby.StatusWaiting || snap.Connect != "" {
-		t.Fatalf("aborted lobby was revived: status %s connect %q", snap.Status, snap.Connect)
+		t.Fatalf("lobby after abort: status %s connect %q", snap.Status, snap.Connect)
 	}
 	if _, err := r.st.ActiveMatchOfLobby(context.Background(), lobbyID); !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("aborted match is active again: %v", err)
+		t.Fatalf("aborted match is still active: %v", err)
 	}
 	if st := r.pool.State(); st[0].Busy {
 		t.Fatal("server is still held after the abort")
 	}
 }
 
-func TestAbortDuringLaunch_BeforeLoad_DoesNotLoadTheMatch(t *testing.T) {
-	r := newRig(t, 1)
-	id := r.lobbyWith(t, 1)
-	abortOn(r, id, "sv_password")
-	r.o.Start(id, "de_dust2")
-	for _, c := range r.rcon.calls {
-		if strings.HasPrefix(c.cmd, "matchzy_loadmatch_url") {
-			t.Fatalf("aborted match was loaded on the server: %+v", r.rcon.calls)
+func TestAbortDuringLaunch_WaitsForTheLaunchThenEndsTheMatch(t *testing.T) {
+	for _, prefix := range []string{"sv_password", "matchzy_loadmatch_url"} {
+		r := newRig(t, 1)
+		id := r.lobbyWith(t, 1)
+		wait := abortWhile(r, id, prefix)
+		r.o.Start(id, "de_dust2")
+		during := wait()
+		if during == store.MatchAborted {
+			t.Fatalf("[%s] the abort ran in the middle of the launch instead of waiting for it", prefix)
+		}
+		assertEndedCleanly(t, r, id)
+		// the launch finished first, so the abort stopped a running match properly
+		var sawEnd bool
+		for _, c := range r.rcon.calls {
+			sawEnd = sawEnd || c.cmd == "get5_endmatch"
+		}
+		if !sawEnd {
+			t.Fatalf("[%s] running match was not ended on the server: %+v", prefix, r.rcon.calls)
 		}
 	}
-	assertAbortedNotRevived(t, r, id)
 }
 
-func TestAbortDuringLaunch_AfterLoad_DoesNotRunTheMatch(t *testing.T) {
+func TestLaunch_NeverReleasesAServerHeldByAnotherLobby(t *testing.T) {
 	r := newRig(t, 1)
-	id := r.lobbyWith(t, 1)
-	abortOn(r, id, "matchzy_loadmatch_url")
-	r.o.Start(id, "de_dust2")
-	assertAbortedNotRevived(t, r, id)
+	holder := r.lobbyWith(t, 1)
+	srv, ok := r.pool.Acquire(holder)
+	if !ok {
+		t.Fatal("no server")
+	}
+	// a stale launch for a lobby that has no match and does not hold the server
+	r.o.launch("ghost-lobby", srv)
+	if st := r.pool.State(); !st[0].Busy || st[0].LobbyID != holder {
+		t.Fatalf("someone else's server was released: %+v", st[0])
+	}
+	if r.rcon.count() != 0 {
+		t.Fatalf("stale launch talked to the server: %+v", r.rcon.calls)
+	}
 }

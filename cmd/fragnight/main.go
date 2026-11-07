@@ -45,8 +45,14 @@ func main() {
 	orch := match.New(match.Deps{
 		Lobbies: lobbies, Pool: pool.New(cfg.Servers), RCON: pool.NewRCON(), Store: st,
 		BaseURL: cfg.BaseURL, WebhookSecret: cfg.WebhookSecret, Admins: cfg.AdminSteamIDs,
+		MaxDuration: cfg.MatchMaxDuration,
 	})
 	// Starting a match talks to the CS2 server, so keep it off the ticker goroutine.
+	admins := map[string]bool{}
+	for _, id := range cfg.AdminSteamIDs {
+		admins[id] = true
+	}
+	lobbies.CanUseCustomMaps = func(steamID string) bool { return admins[steamID] }
 	lobbies.OnMapChosen = func(id, mapName string) { go orch.Start(id, mapName) }
 	lobbies.OnEmpty = func(id string) { go orch.LobbyGone(id) }
 	handler := web.New(web.Deps{
@@ -68,6 +74,20 @@ func main() {
 				return
 			case <-t.C:
 				lobbies.Tick()
+			}
+		}
+	}()
+
+	// Abort matches that run far too long so they cannot hold a server forever.
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				orch.ExpireStale()
 			}
 		}
 	}()

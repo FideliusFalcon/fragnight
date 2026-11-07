@@ -6,6 +6,8 @@ package matchzy
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"unicode"
 
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
 	"github.com/fideliusfalcon/fragnight/internal/settings"
@@ -39,10 +41,33 @@ type matchConfig struct {
 	Cvars          map[string]string `json:"cvars"`
 }
 
+// SafeName cleans a Steam display name before it goes into the match config.
+// Names are chosen by any Steam account, so control characters and the characters
+// that are special in the game console (quotes, ';', backslash, backtick, '$')
+// are dropped, spaces are collapsed and the length is capped. An empty result
+// falls back to the SteamID.
+func SafeName(name, steamID string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if unicode.IsControl(r) || strings.ContainsRune(`";\`+"`$", r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	out := strings.Join(strings.Fields(b.String()), " ")
+	if r := []rune(out); len(r) > 32 {
+		out = strings.TrimSpace(string(r[:32]))
+	}
+	if out == "" {
+		return steamID
+	}
+	return out
+}
+
 func roster(ps []lobby.Player) map[string]string {
 	m := make(map[string]string, len(ps))
 	for _, p := range ps {
-		m[p.SteamID] = p.Name
+		m[p.SteamID] = SafeName(p.Name, p.SteamID)
 	}
 	return m
 }

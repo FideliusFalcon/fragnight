@@ -342,3 +342,47 @@ func TestLobbyWS_RematchAndSwapCommands(t *testing.T) {
 	wa.send(map[string]any{"type": "rematch"})
 	wa.stateUntil(func(s lobby.Snapshot) bool { return s.Status == lobby.StatusWaiting })
 }
+
+func TestLobbyWS_SettingsAreEnforcedOnTheServer(t *testing.T) {
+	e := newEnv(t, true)
+	host := e.login(t, 1, "host")
+	resp := host.post(t, "/lobbies", url.Values{"name": {"L"}})
+	id := strings.TrimPrefix(resp.Header.Get("Location"), "/lobby/")
+	w := host.dial(t, "/ws/lobby/"+id)
+	w.next("state")
+
+	good := map[string]any{"mr": 12, "overtime": true, "ot_max_rounds": 6, "ot_start_money": 10000, "knife_round": true,
+		"friendly_fire": true, "dead_talk": false, "timeouts_per_team": 4, "timeout_seconds": 30, "maps": []string{"de_dust2"}}
+	with := func(k string, v any) map[string]any {
+		m := map[string]any{}
+		for kk, vv := range good {
+			m[kk] = vv
+		}
+		m[k] = v
+		return m
+	}
+	msgOf := func(raw map[string]json.RawMessage) string {
+		var s string
+		json.Unmarshal(raw["message"], &s)
+		return s
+	}
+	cases := []struct {
+		name     string
+		settings map[string]any
+		want     string
+	}{
+		{"endless match", with("mr", 1000000), "MR must be"},
+		{"huge money", with("ot_start_money", 1<<40), "overtime money"},
+		{"custom map by a regular host", with("maps", []string{"de_dust2", "de_mymap"}), "admin"},
+		{"console injection in a map name", with("maps", []string{"de_dust2; quit"}), "not a valid map name"},
+	}
+	for _, c := range cases {
+		w.send(map[string]any{"type": "settings", "settings": c.settings})
+		if got := msgOf(w.next("error")); !strings.Contains(got, c.want) {
+			t.Errorf("%s: error %q does not mention %q", c.name, got, c.want)
+		}
+	}
+	// a valid change still works
+	w.send(map[string]any{"type": "settings", "settings": with("mr", 15)})
+	w.stateUntil(func(s lobby.Snapshot) bool { return s.Settings.MR == 15 })
+}

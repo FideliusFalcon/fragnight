@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func env(m map[string]string) func(string) string {
@@ -37,5 +38,24 @@ func TestLoad_ParsesAdminsAndServers(t *testing.T) {
 	}
 	if !c.DevLogin || c.ListenAddr != ":8080" || c.DBPath != "lobby.db" {
 		t.Fatalf("defaults: %+v", c)
+	}
+}
+
+func TestLoad_MatchMaxDuration(t *testing.T) {
+	base := map[string]string{"BASE_URL": "http://x", "SESSION_SECRET": "s"}
+	c, err := Load(env(base), strings.NewReader("[]"))
+	if err != nil || c.MatchMaxDuration != 3*time.Hour {
+		t.Fatalf("default: %v %v", c.MatchMaxDuration, err)
+	}
+	base["MATCH_MAX_MINUTES"] = "90"
+	c, err = Load(env(base), strings.NewReader("[]"))
+	if err != nil || c.MatchMaxDuration != 90*time.Minute {
+		t.Fatalf("90 min: %v %v", c.MatchMaxDuration, err)
+	}
+	for _, bad := range []string{"0", "-5", "abc", "1.5"} {
+		base["MATCH_MAX_MINUTES"] = bad
+		if _, err := Load(env(base), strings.NewReader("[]")); err == nil || !strings.Contains(err.Error(), "MATCH_MAX_MINUTES") {
+			t.Errorf("%q: want an error naming MATCH_MAX_MINUTES, got %v", bad, err)
+		}
 	}
 }

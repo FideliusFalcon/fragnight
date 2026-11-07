@@ -43,6 +43,7 @@ var (
 	ErrNotVoter       = errors.New("only players on a team can vote")
 	ErrBadTeam        = errors.New("invalid team")
 	ErrBadMap         = errors.New("that map is not in the pool")
+	ErrCustomMaps     = errors.New("custom maps can only be set by an admin")
 )
 
 type Player struct {

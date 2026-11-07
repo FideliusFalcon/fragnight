@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS matches (
     team2_score   INTEGER NOT NULL DEFAULT 0,
     winner        INTEGER NOT NULL DEFAULT 0,
     started_at    INTEGER NOT NULL,
+    running_at    INTEGER NOT NULL DEFAULT 0,
     ended_at      INTEGER NOT NULL DEFAULT 0
 );
 

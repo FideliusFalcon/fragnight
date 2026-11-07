@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fideliusfalcon/fragnight/internal/pool"
 )
@@ -17,8 +19,10 @@ type Config struct {
 	SteamAPIKey   string
 	WebhookSecret string
 	DevLogin      bool
-	AdminSteamIDs []string
-	Servers       []pool.Server
+	// MatchMaxDuration is how long a match may run before it is aborted (default 3 h).
+	MatchMaxDuration time.Duration
+	AdminSteamIDs    []string
+	Servers          []pool.Server
 }
 
 // Load reads configuration from environment variables (via getenv) and the
@@ -38,6 +42,14 @@ func Load(getenv func(string) string, serversFile io.Reader) (Config, error) {
 	}
 	if c.SessionSecret == "" {
 		return c, fmt.Errorf("SESSION_SECRET is required")
+	}
+	c.MatchMaxDuration = 3 * time.Hour
+	if v := getenv("MATCH_MAX_MINUTES"); v != "" {
+		mins, err := strconv.Atoi(v)
+		if err != nil || mins < 1 {
+			return c, fmt.Errorf("MATCH_MAX_MINUTES must be a whole number of minutes, at least 1 (got %q)", v)
+		}
+		c.MatchMaxDuration = time.Duration(mins) * time.Minute
 	}
 	if c.ListenAddr == "" {
 		c.ListenAddr = ":8080"

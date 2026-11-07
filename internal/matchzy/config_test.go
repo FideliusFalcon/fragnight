@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
@@ -81,5 +82,45 @@ func TestLoadCommand(t *testing.T) {
 	want := `matchzy_loadmatch_url "http://lobby:8080/internal/match/m1/config.json?token=abc"`
 	if got != want {
 		t.Fatalf("got %s", got)
+	}
+}
+
+func TestSafeName(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"guso", "guso"},
+		{"  spaced  out  ", "spaced out"},
+		{`evil"; rcon_password x`, "evil rcon_password x"},
+		{"line\nbreak\r\ttab", "linebreaktab"},
+		{"back\\slash `tick` $var", "backslash tick var"},
+		{"Zoë ★ 日本語", "Zoë ★ 日本語"},
+		{"\x00\x07bell", "bell"},
+		{"", "76561198000000001"},
+		{`";;;"`, "76561198000000001"},
+	}
+	for _, c := range cases {
+		if got := SafeName(c.in, "76561198000000001"); got != c.want {
+			t.Errorf("SafeName(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestSafeName_CapsLength(t *testing.T) {
+	long := strings.Repeat("abcdefgh", 10)
+	got := SafeName(long, "76561198000000001")
+	if len([]rune(got)) != 32 || !strings.HasPrefix(long, got) {
+		t.Fatalf("got %q (%d runes)", got, len([]rune(got)))
+	}
+}
+
+func TestBuildConfig_NamesAreSanitized(t *testing.T) {
+	in := input()
+	in.Team1[0].Name = `evil"; quit`
+	got, err := BuildConfig(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	players := decode(t, got)["team1"].(map[string]any)["players"].(map[string]any)
+	if players["76561198000000001"] != "evil quit" {
+		t.Fatalf("name in config: %q", players["76561198000000001"])
 	}
 }

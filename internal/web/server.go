@@ -334,6 +334,7 @@ type lobbyView struct {
 	TeamSize   int
 	ActiveMaps []string
 	OtherMaps  []string
+	IsAdmin    bool
 }
 
 type mapRow struct {
@@ -342,9 +343,9 @@ type mapRow struct {
 	Pct   int
 }
 
-func newLobbyView(snap lobby.Snapshot, me lobby.Player) lobbyView {
+func newLobbyView(snap lobby.Snapshot, me lobby.Player, isAdmin bool) lobbyView {
 	v := lobbyView{Snap: snap, Me: me, IsHost: snap.HostSteamID == me.SteamID, TeamSize: lobby.TeamSize,
-		ActiveMaps: settings.DefaultMapPool, OtherMaps: settings.OtherMaps}
+		ActiveMaps: settings.DefaultMapPool, OtherMaps: settings.OtherMaps, IsAdmin: isAdmin}
 	total := 0
 	for _, n := range snap.Tally {
 		total += n
@@ -397,5 +398,5 @@ func (s *Server) handleLobbyPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.render(w, http.StatusOK, "lobby", page{Title: snap.Name, Me: &me, Data: newLobbyView(snap, me)})
+	s.render(w, http.StatusOK, "lobby", page{Title: snap.Name, Me: &me, Data: newLobbyView(snap, me, s.isAdmin(me.SteamID))})
 }

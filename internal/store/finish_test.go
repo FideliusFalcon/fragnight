@@ -21,7 +21,7 @@ func TestFinishMatch_WritesStatsAndRatings(t *testing.T) {
 	seed(t, s) // player 1 has 1120, player 2 has 1000
 	ctx := context.Background()
 	s.CreateMatch(ctx, newMatch(), []RosterEntry{{"1", 1}, {"2", 2}})
-	s.SetMatchRunning(ctx, "m1", "cs2-1")
+	s.SetMatchRunning(ctx, "m1", "cs2-1", 1000)
 	if err := s.FinishMatch(ctx, finishInput()); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestFinishMatch_OnlyOnce(t *testing.T) {
 	seed(t, s)
 	ctx := context.Background()
 	s.CreateMatch(ctx, newMatch(), []RosterEntry{{"1", 1}, {"2", 2}})
-	s.SetMatchRunning(ctx, "m1", "cs2-1")
+	s.SetMatchRunning(ctx, "m1", "cs2-1", 1000)
 	if err := s.FinishMatch(ctx, finishInput()); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestFinishMatch_RefusesAbortedAndPending(t *testing.T) {
 	if err := s.FinishMatch(ctx, finishInput()); !errors.Is(err, ErrNotRunning) {
 		t.Fatalf("pending: %v", err)
 	}
-	s.SetMatchRunning(ctx, "m1", "cs2-1")
+	s.SetMatchRunning(ctx, "m1", "cs2-1", 1000)
 	s.SetMatchStatus(ctx, "m1", MatchAborted, 1)
 	if err := s.FinishMatch(ctx, finishInput()); !errors.Is(err, ErrNotRunning) {
 		t.Fatalf("aborted: %v", err)
@@ -87,7 +87,7 @@ func TestFinishMatch_AppliesDeltaToCurrentRating(t *testing.T) {
 	if _, err := s.db.Exec(`UPDATE players SET elo = 1500 WHERE steamid = '1'`); err != nil {
 		t.Fatal(err)
 	}
-	s.SetMatchRunning(ctx, "m1", "cs2-1")
+	s.SetMatchRunning(ctx, "m1", "cs2-1", 1000)
 	if err := s.FinishMatch(ctx, finishInput()); err != nil {
 		t.Fatal(err)
 	}

@@ -430,3 +430,29 @@ func TestListAll_IncludesPrivate(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestSetSettings_CustomMapsAreAdminOnly(t *testing.T) {
+	m := newMgr()
+	s := mustCreate(t, m, pl(1), true)
+	custom := settings.Defaults()
+	custom.Maps = []string{"de_dust2", "de_mymap"}
+
+	if err := m.SetSettings(s.ID, pl(1).SteamID, custom); err != ErrCustomMaps {
+		t.Fatalf("host without permission: want ErrCustomMaps, got %v", err)
+	}
+	// known maps from the "other maps" list are fine for everyone
+	other := settings.Defaults()
+	other.Maps = []string{"de_dust2", "de_vertigo", "cs_office"}
+	if err := m.SetSettings(s.ID, pl(1).SteamID, other); err != nil {
+		t.Fatalf("known maps: %v", err)
+	}
+
+	m.CanUseCustomMaps = func(steamID string) bool { return steamID == pl(1).SteamID }
+	if err := m.SetSettings(s.ID, pl(1).SteamID, custom); err != nil {
+		t.Fatalf("permitted host: %v", err)
+	}
+	got, _ := m.Get(s.ID)
+	if len(got.Settings.Maps) != 2 || got.Settings.Maps[1] != "de_mymap" {
+		t.Fatalf("maps %v", got.Settings.Maps)
+	}
+}

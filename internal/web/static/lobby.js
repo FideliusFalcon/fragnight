@@ -177,10 +177,13 @@
     }
     const activeChecks = mapGroup('Map pool: Active Duty', active);
     const otherChecks = mapGroup('Other maps', other);
+    // Custom map names are for admins only (the server also enforces this).
     const custom = el('input'); custom.type = 'text'; custom.placeholder = 'de_mymap, cs_other';
     custom.value = s.maps.filter((m) => !known.includes(m)).join(', ');
-    const customLabel = el('label'); customLabel.append(el('span', '', 'Custom maps (names, comma separated)'), custom);
-    form.appendChild(customLabel);
+    if (root.dataset.admin === '1') {
+      const customLabel = el('label'); customLabel.append(el('span', '', 'Custom maps (admin only)'), custom);
+      form.appendChild(customLabel);
+    }
     const resetBtn = el('button', 'btn', 'Reset to Active Duty'); resetBtn.type = 'button';
     resetBtn.addEventListener('click', () => {
       activeChecks.forEach((c) => { c.checked = true; });

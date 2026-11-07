@@ -24,6 +24,25 @@ var OtherMaps = []string{
 // MaxMaps limits how many maps a pool may hold.
 const MaxMaps = 20
 
+// Upper limits for host-editable numbers. They keep a host from setting values
+// that would make a match never end or confuse the server; all tournament
+// defaults (and MR15) are well inside them.
+const (
+	MaxMR             = 30
+	MaxOTRounds       = 10
+	MaxMoney          = 16000 // CS2's default mp_maxmoney
+	MaxTimeouts       = 10
+	MaxTimeoutSeconds = 300
+)
+
+// IsCustomMap reports whether a map is outside the built-in lists.
+func IsCustomMap(name string) bool {
+	return !slices.Contains(DefaultMapPool, name) && !slices.Contains(OtherMaps, name)
+}
+
+// HasCustomMaps reports whether the pool contains a map outside the built-in lists.
+func (m Match) HasCustomMaps() bool { return slices.ContainsFunc(m.Maps, IsCustomMap) }
+
 // mapNameRe is deliberately strict: map names are sent to the game server, so
 // only plain lowercase ids are accepted (no paths, spaces, quotes or ';').
 // Workshop maps are not supported.
@@ -70,17 +89,20 @@ func (m Match) Validate() error {
 		}
 		seen[name] = true
 	}
-	if m.MR < 1 {
-		return fmt.Errorf("MR must be at least 1")
+	if m.MR < 1 || m.MR > MaxMR {
+		return fmt.Errorf("MR must be between 1 and %d", MaxMR)
 	}
-	if m.Overtime && (m.OTMaxRounds < 2 || m.OTMaxRounds%2 != 0) {
-		return fmt.Errorf("overtime rounds must be an even number")
+	if m.Overtime && (m.OTMaxRounds < 2 || m.OTMaxRounds > MaxOTRounds || m.OTMaxRounds%2 != 0) {
+		return fmt.Errorf("overtime rounds must be an even number between 2 and %d", MaxOTRounds)
 	}
-	if m.OTStartMoney < 0 {
-		return fmt.Errorf("overtime money must not be negative")
+	if m.OTStartMoney < 0 || m.OTStartMoney > MaxMoney {
+		return fmt.Errorf("overtime money must be between 0 and %d", MaxMoney)
 	}
-	if m.TimeoutsPerTeam < 0 || m.TimeoutSeconds < 0 {
-		return fmt.Errorf("timeouts must not be negative")
+	if m.TimeoutsPerTeam < 0 || m.TimeoutsPerTeam > MaxTimeouts {
+		return fmt.Errorf("timeouts per team must be between 0 and %d", MaxTimeouts)
+	}
+	if m.TimeoutSeconds < 0 || m.TimeoutSeconds > MaxTimeoutSeconds {
+		return fmt.Errorf("timeout length must be between 0 and %d seconds", MaxTimeoutSeconds)
 	}
 	return nil
 }

@@ -15,7 +15,7 @@ func finished(t *testing.T, s *Store, id string, a, b string, winner int, endedA
 	if err := s.CreateMatch(ctx, m, []RosterEntry{{a, 1}, {b, 2}}); err != nil {
 		t.Fatal(err)
 	}
-	s.SetMatchRunning(ctx, id, "cs2-1")
+	s.SetMatchRunning(ctx, id, "cs2-1", 1000)
 	err := s.FinishMatch(ctx, FinishInput{MatchID: id, Team1Score: 13, Team2Score: 5, Winner: winner, EndedAt: endedAt,
 		Players: []PlayerResult{
 			{SteamID: a, Kills: 20, Deaths: 10, Assists: 2, Damage: 2400, Headshots: 10, Rounds: 20, EloDelta: dA},

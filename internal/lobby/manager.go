@@ -44,6 +44,9 @@ type Manager struct {
 
 	// OnEmpty is called (without locks held) when the last member leaves.
 	OnEmpty func(lobbyID string)
+	// CanUseCustomMaps reports whether a player may put maps outside the built-in
+	// lists into a pool. Nil means nobody may.
+	CanUseCustomMaps func(steamID string) bool
 	// OnMapChosen is called (without locks held) when a vote finishes.
 	OnMapChosen func(lobbyID, mapName string)
 }
@@ -393,6 +396,9 @@ func (m *Manager) SetSettings(id, actor string, ns settings.Match) error {
 	}
 	if err := ns.Validate(); err != nil {
 		return err
+	}
+	if ns.HasCustomMaps() && (m.CanUseCustomMaps == nil || !m.CanUseCustomMaps(actor)) {
+		return ErrCustomMaps
 	}
 	ns.Maps = slices.Clone(ns.Maps)
 	s.settings = ns

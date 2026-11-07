@@ -20,7 +20,7 @@ type Match struct {
 	SettingsJSON, Token, ConfigJSON       string
 	Status                                string
 	Team1Score, Team2Score, Winner        int
-	StartedAt, EndedAt                    int64
+	StartedAt, RunningAt, EndedAt         int64
 }
 
 type RosterEntry struct {
@@ -37,12 +37,12 @@ type RosterRow struct {
 }
 
 const matchCols = `id, lobby_id, lobby_name, server_id, map, settings_json, token, config_json, status,
-	team1_score, team2_score, winner, started_at, ended_at`
+	team1_score, team2_score, winner, started_at, running_at, ended_at`
 
 func scanMatch(row interface{ Scan(...any) error }) (Match, error) {
 	var m Match
 	err := row.Scan(&m.ID, &m.LobbyID, &m.LobbyName, &m.ServerID, &m.Map, &m.SettingsJSON, &m.Token, &m.ConfigJSON,
-		&m.Status, &m.Team1Score, &m.Team2Score, &m.Winner, &m.StartedAt, &m.EndedAt)
+		&m.Status, &m.Team1Score, &m.Team2Score, &m.Winner, &m.StartedAt, &m.RunningAt, &m.EndedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Match{}, ErrNotFound
 	}
@@ -103,9 +103,9 @@ var ErrNotPending = errors.New("match is not pending")
 
 // SetMatchRunning moves a pending match to running on the given server. It never
 // revives a match that has since ended.
-func (s *Store) SetMatchRunning(ctx context.Context, id, serverID string) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE matches SET status = ?, server_id = ? WHERE id = ? AND status = ?`,
-		MatchRunning, serverID, id, MatchPending)
+func (s *Store) SetMatchRunning(ctx context.Context, id, serverID string, at int64) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE matches SET status = ?, server_id = ?, running_at = ? WHERE id = ? AND status = ?`,
+		MatchRunning, serverID, at, id, MatchPending)
 	if err != nil {
 		return err
 	}
@@ -179,4 +179,28 @@ func (s *Store) FinishMatch(ctx context.Context, in FinishInput) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// RunningMatches lists every match currently running on a server, oldest first.
+func (s *Store) RunningMatches(ctx context.Context) ([]Match, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+matchCols+` FROM matches WHERE status = ? ORDER BY running_at, id`, MatchRunning)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Match
+	for rows.Next() {
+		m, err := scanMatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// GetMatchOfLobby returns the lobby's most recent match of any status, or ErrNotFound.
+func (s *Store) GetMatchOfLobby(ctx context.Context, lobbyID string) (Match, error) {
+	return scanMatch(s.db.QueryRowContext(ctx, `SELECT `+matchCols+` FROM matches
+		WHERE lobby_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`, lobbyID))
 }

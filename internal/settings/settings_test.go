@@ -121,3 +121,43 @@ func TestValidate_AcceptsCustomMapNames(t *testing.T) {
 		t.Fatalf("custom names rejected: %v", err)
 	}
 }
+
+func TestValidate_AcceptsLimitsExactly(t *testing.T) {
+	m := Defaults()
+	m.MR, m.OTMaxRounds, m.OTStartMoney = MaxMR, MaxOTRounds, MaxMoney
+	m.TimeoutsPerTeam, m.TimeoutSeconds = MaxTimeouts, MaxTimeoutSeconds
+	if err := m.Validate(); err != nil {
+		t.Fatalf("limits themselves must be allowed: %v", err)
+	}
+	m.MR = 1
+	if err := m.Validate(); err != nil {
+		t.Fatalf("MR 1: %v", err)
+	}
+}
+
+func TestLimits_CoverTheTournamentDefaults(t *testing.T) {
+	d := Defaults()
+	if d.MR > MaxMR || d.OTMaxRounds > MaxOTRounds || d.OTStartMoney > MaxMoney || d.TimeoutsPerTeam > MaxTimeouts || d.TimeoutSeconds > MaxTimeoutSeconds {
+		t.Fatalf("defaults exceed the limits: %+v", d)
+	}
+	if MaxMR < 15 {
+		t.Fatalf("MR15 must stay possible, MaxMR=%d", MaxMR)
+	}
+}
+
+func TestIsCustom(t *testing.T) {
+	if IsCustomMap("de_dust2") || IsCustomMap("de_cache") || IsCustomMap("cs_office") || IsCustomMap("de_vertigo") {
+		t.Fatal("known maps are not custom")
+	}
+	if !IsCustomMap("de_mymap") || !IsCustomMap("ar_shoots") {
+		t.Fatal("unknown maps are custom")
+	}
+	m := Defaults()
+	if m.HasCustomMaps() {
+		t.Fatal("defaults have no custom maps")
+	}
+	m.Maps = append(m.Maps, "de_mymap")
+	if !m.HasCustomMaps() {
+		t.Fatal("custom map not detected")
+	}
+}

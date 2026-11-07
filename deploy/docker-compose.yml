@@ -60,6 +60,7 @@ services:
       ADMIN_STEAMIDS: ${ADMIN_STEAMIDS:-}
       STEAM_API_KEY: ${STEAM_API_KEY:-}
       DEV_LOGIN: ${DEV_LOGIN:-0}
+      MATCH_MAX_MINUTES: ${MATCH_MAX_MINUTES:-180}
       DB_PATH: /data/lobby.db
       SERVERS_FILE: /config/servers.json
     volumes:

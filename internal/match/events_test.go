@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
 	"github.com/fideliusfalcon/fragnight/internal/matchzy"
@@ -74,8 +76,13 @@ func TestHandleEvent_MapResultAppliesStatsAndElo(t *testing.T) {
 		t.Fatal("server not released")
 	}
 	last := r.rcon.calls[len(r.rcon.calls)-1]
-	if last.cmd != `sv_password ""` {
-		t.Fatalf("server not reset, last rcon call %+v", last)
+	if !strings.HasPrefix(last.cmd, "sv_password ") || last.cmd == `sv_password ""` || len(last.cmd) < len("sv_password ")+16 {
+		t.Fatalf("an idle server must be locked with a fresh random password, last rcon call %+v", last)
+	}
+	for _, c := range r.rcon.calls[3:] {
+		if c.cmd == "kickall" {
+			t.Fatal("players are kicked as soon as the match ends, before they can see the result")
+		}
 	}
 }
 
@@ -273,5 +280,121 @@ func TestRematch_SameLobbyCanPlayASecondMatch(t *testing.T) {
 	old, _ := r.st.GetMatch(context.Background(), firstID)
 	if old.Status != store.MatchFinished || old.Team1Score != 13 {
 		t.Fatalf("first match changed: %+v", old)
+	}
+}
+
+func TestAbort_KicksEveryoneAndLocksTheServer(t *testing.T) {
+	r := newRig(t, 1)
+	lobbyID, _ := r.runningMatch(t, 1)
+	before := r.rcon.count()
+	if err := r.o.Abort(lobbyID, steam(1)); err != nil {
+		t.Fatal(err)
+	}
+	var cmds []string
+	for _, c := range r.rcon.calls[before:] {
+		cmds = append(cmds, c.cmd)
+	}
+	if len(cmds) != 3 || cmds[0] != "get5_endmatch" || cmds[1] != "kickall" || !strings.HasPrefix(cmds[2], "sv_password ") || cmds[2] == `sv_password ""` {
+		t.Fatalf("commands after abort: %v", cmds)
+	}
+}
+
+func TestExpireStale_AbortsMatchesThatRunTooLong(t *testing.T) {
+	r := newRig(t, 2)
+	oldLobby, oldMatch := r.runningMatch(t, 1)
+	now := time.Now()
+	r.o.Now = func() time.Time { return now.Add(150 * time.Minute) }
+	freshLobby, freshMatch := r.runningMatch(t, 10) // started at "now+150min", so it is fresh
+	r.o.MaxDuration = 2 * time.Hour
+
+	r.o.ExpireStale()
+
+	if m, _ := r.st.GetMatch(context.Background(), oldMatch); m.Status != store.MatchAborted {
+		t.Fatalf("old match %s", m.Status)
+	}
+	snap, _ := r.lobbies.Get(oldLobby)
+	if snap.Status != lobby.StatusWaiting || !strings.Contains(snap.Error, "timed out") || snap.Connect != "" {
+		t.Fatalf("old lobby: %s %q", snap.Status, snap.Error)
+	}
+	if m, _ := r.st.GetMatch(context.Background(), freshMatch); m.Status != store.MatchRunning {
+		t.Fatalf("fresh match was touched: %s", m.Status)
+	}
+	if s2, _ := r.lobbies.Get(freshLobby); s2.Status != lobby.StatusInMatch {
+		t.Fatalf("fresh lobby %s", s2.Status)
+	}
+	free := 0
+	for _, st := range r.pool.State() {
+		if !st.Busy {
+			free++
+		}
+	}
+	if free != 1 {
+		t.Fatalf("expected exactly the timed-out server to be free, %d free", free)
+	}
+}
+
+func TestExpireStale_DefaultLimitIsGenerous(t *testing.T) {
+	r := newRig(t, 1)
+	_, matchID := r.runningMatch(t, 1)
+	now := time.Now()
+	r.o.Now = func() time.Time { return now.Add(2 * time.Hour) } // a long overtime match
+	r.o.ExpireStale()
+	if m, _ := r.st.GetMatch(context.Background(), matchID); m.Status != store.MatchRunning {
+		t.Fatalf("a 2 hour match was cut off by the default limit: %s", m.Status)
+	}
+	r.o.Now = func() time.Time { return now.Add(4 * time.Hour) }
+	r.o.ExpireStale()
+	if m, _ := r.st.GetMatch(context.Background(), matchID); m.Status != store.MatchAborted {
+		t.Fatalf("a 4 hour match was not cut off: %s", m.Status)
+	}
+}
+
+func TestAbortAndResult_ReleaseTheServerExactlyOnce(t *testing.T) {
+	for i := 0; i < 25; i++ {
+		r := newRig(t, 1)
+		a, matchA := r.runningMatch(t, 1)
+		b := r.lobbyWith(t, 10)
+		r.o.Start(b, "de_nuke") // queued behind A
+		ev := event(t, "map_result", matchA)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); r.o.Abort(a, steam(1)) }()
+		go func() { defer wg.Done(); r.o.HandleEvent("s1", ev) }()
+		wg.Wait()
+
+		snapB, _ := r.lobbies.Get(b)
+		st := r.pool.State()[0]
+		if snapB.Status != lobby.StatusInMatch || !st.Busy || st.LobbyID != b {
+			t.Fatalf("iteration %d: B status %s, server busy=%v held by %q (a double release freed B's server)", i, snapB.Status, st.Busy, st.LobbyID)
+		}
+	}
+}
+
+func TestResetServer_WaitsForALaunchInProgress(t *testing.T) {
+	r := newRig(t, 1)
+	id := r.lobbyWith(t, 1)
+	var once sync.Once
+	done := make(chan struct{})
+	r.rcon.onExec = func(c call) {
+		if strings.HasPrefix(c.cmd, "sv_password") {
+			once.Do(func() {
+				go func() { defer close(done); r.o.ResetServer("s1") }()
+				time.Sleep(60 * time.Millisecond)
+			})
+		}
+	}
+	r.o.Start(id, "de_dust2")
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ResetServer never finished")
+	}
+	if st := r.pool.State(); st[0].Busy {
+		t.Fatal("server still busy")
+	}
+	snap, _ := r.lobbies.Get(id)
+	if snap.Status != lobby.StatusWaiting {
+		t.Fatalf("lobby %s", snap.Status)
 	}
 }

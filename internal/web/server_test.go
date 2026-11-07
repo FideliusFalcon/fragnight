@@ -313,3 +313,19 @@ func TestLobbyPage_OffersActiveDutyAndOtherMaps(t *testing.T) {
 		t.Error("Overpass listed as Active Duty")
 	}
 }
+
+func TestLobbyPage_TellsThePageWhetherCustomMapsAreAllowed(t *testing.T) {
+	e := newEnv(t, true)
+	user := e.login(t, 1, "guso")
+	resp := user.post(t, "/lobbies", url.Values{"name": {"L"}})
+	_, body := user.get(t, resp.Header.Get("Location"))
+	if !strings.Contains(body, `data-admin="0"`) {
+		t.Fatal("regular user should get data-admin=0")
+	}
+	admin := e.login(t, 900, "root")
+	resp = admin.post(t, "/lobbies", url.Values{"name": {"A"}})
+	_, body = admin.get(t, resp.Header.Get("Location"))
+	if !strings.Contains(body, `data-admin="1"`) {
+		t.Fatal("admin should get data-admin=1")
+	}
+}
