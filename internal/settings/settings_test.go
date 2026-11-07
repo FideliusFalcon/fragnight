@@ -1,9 +1,19 @@
 package settings
 
 import (
+	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 )
+
+func tooMany() []string {
+	var out []string
+	for i := 0; i < 25; i++ {
+		out = append(out, fmt.Sprintf("de_map%d", i))
+	}
+	return out
+}
 
 func TestDefaults_AreTournament(t *testing.T) {
 	d := Defaults()
@@ -19,6 +29,34 @@ func TestDefaults_AreTournament(t *testing.T) {
 	}
 }
 
+func TestDefaultPool_IsCurrentActiveDuty(t *testing.T) {
+	want := []string{"de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"}
+	if !reflect.DeepEqual(DefaultMapPool, want) {
+		t.Fatalf("pool %v, want %v", DefaultMapPool, want)
+	}
+	for _, m := range []string{"de_overpass", "de_train", "de_vertigo"} {
+		if slices.Contains(DefaultMapPool, m) {
+			t.Errorf("%s is no longer Active Duty", m)
+		}
+	}
+}
+
+func TestOtherMaps_AreSelectableAndNotInDefaultPool(t *testing.T) {
+	for _, m := range []string{"de_overpass", "de_train", "de_vertigo", "de_canals", "cs_office", "cs_italy"} {
+		if !slices.Contains(OtherMaps, m) {
+			t.Errorf("%s missing from OtherMaps", m)
+		}
+		if slices.Contains(DefaultMapPool, m) {
+			t.Errorf("%s should not be a default", m)
+		}
+		s := Defaults()
+		s.Maps = []string{m}
+		if err := s.Validate(); err != nil {
+			t.Errorf("%s rejected: %v", m, err)
+		}
+	}
+}
+
 func TestDefaults_MapsAreACopy(t *testing.T) {
 	d := Defaults()
 	d.Maps[0] = "de_changed"
@@ -30,7 +68,14 @@ func TestDefaults_MapsAreACopy(t *testing.T) {
 func TestValidate(t *testing.T) {
 	cases := map[string]func(*Match){
 		"empty maps":        func(m *Match) { m.Maps = nil },
-		"unknown map":       func(m *Match) { m.Maps = []string{"de_nowhere"} },
+		"bad map chars":     func(m *Match) { m.Maps = []string{"de_dust2; quit"} },
+		"uppercase map":     func(m *Match) { m.Maps = []string{"de_Dust2"} },
+		"path in map":       func(m *Match) { m.Maps = []string{"../de_dust2"} },
+		"workshop id":       func(m *Match) { m.Maps = []string{"workshop/123/de_x"} },
+		"no prefix":         func(m *Match) { m.Maps = []string{"dust2"} },
+		"quote in map":      func(m *Match) { m.Maps = []string{`de_x"`} },
+		"duplicate map":     func(m *Match) { m.Maps = []string{"de_dust2", "de_dust2"} },
+		"too many maps":     func(m *Match) { m.Maps = tooMany() },
 		"mr zero":           func(m *Match) { m.MR = 0 },
 		"odd ot rounds":     func(m *Match) { m.OTMaxRounds = 5 },
 		"negative timeouts": func(m *Match) { m.TimeoutsPerTeam = -1 },
@@ -66,5 +111,13 @@ func TestCvars_Defaults(t *testing.T) {
 		if c[k] != v {
 			t.Errorf("%s = %q, want %q", k, c[k], v)
 		}
+	}
+}
+
+func TestValidate_AcceptsCustomMapNames(t *testing.T) {
+	m := Defaults()
+	m.Maps = []string{"de_dust2", "de_mycustom_v2", "cs_agency", "ar_shoots"}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("custom names rejected: %v", err)
 	}
 }

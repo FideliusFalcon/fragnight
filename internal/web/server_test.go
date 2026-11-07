@@ -298,3 +298,18 @@ func TestStaticFilesServed(t *testing.T) {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
 }
+
+func TestLobbyPage_OffersActiveDutyAndOtherMaps(t *testing.T) {
+	e := newEnv(t, true)
+	u := e.login(t, 1, "guso")
+	resp := u.post(t, "/lobbies", url.Values{"name": {"L"}})
+	_, body := u.get(t, resp.Header.Get("Location"))
+	for _, want := range []string{`data-active-maps="`, `data-other-maps="`, "de_cache", "de_vertigo", "de_canals"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("lobby page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "de_overpass,") && strings.Index(body, "de_overpass") < strings.Index(body, `data-other-maps="`) {
+		t.Error("Overpass listed as Active Duty")
+	}
+}

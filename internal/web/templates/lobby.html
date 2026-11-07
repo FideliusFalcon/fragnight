@@ -10,7 +10,7 @@
 {{end}}
 {{define "content"}}
 {{with .Data}}
-<div class="cs" id="lobby" data-id="{{.Snap.ID}}" data-me="{{.Me.SteamID}}">
+<div class="cs" id="lobby" data-id="{{.Snap.ID}}" data-me="{{.Me.SteamID}}" data-active-maps="{{join .ActiveMaps ","}}" data-other-maps="{{join .OtherMaps ","}}">
   <div class="title"><span id="lobby-title">{{.Snap.Name}}</span><span id="lobby-count">{{len .Snap.Members}} players · <a href="/">Lobby list</a></span></div>
   <div class="body">
     <div class="grid">

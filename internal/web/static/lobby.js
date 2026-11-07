@@ -145,13 +145,32 @@
     const dt = field('Dead talk', chk(s.dead_talk));
     const to = field('Timeouts per team', num(s.timeouts_per_team, 0));
     const tos = field('Timeout seconds', num(s.timeout_seconds, 0));
-    const mapsBox = el('div', 'maps');
-    const all = ['de_ancient', 'de_anubis', 'de_dust2', 'de_inferno', 'de_mirage', 'de_nuke', 'de_overpass'];
-    const mapChecks = all.map((name) => {
-      const l = el('label'); const c = chk(s.maps.includes(name)); c.dataset.map = name;
-      l.append(c, el('span', '', ' ' + name)); mapsBox.appendChild(l); return c;
+    const active = (root.dataset.activeMaps || '').split(',').filter(Boolean);
+    const other = (root.dataset.otherMaps || '').split(',').filter(Boolean);
+    const known = active.concat(other);
+    function mapGroup(title, names) {
+      form.appendChild(el('div', 'empty', title));
+      const box = el('div', 'maps');
+      const checks = names.map((name) => {
+        const l = el('label'); const c = chk(s.maps.includes(name)); c.dataset.map = name;
+        l.append(c, el('span', '', ' ' + name)); box.appendChild(l); return c;
+      });
+      form.appendChild(box);
+      return checks;
+    }
+    const activeChecks = mapGroup('Map pool: Active Duty', active);
+    const otherChecks = mapGroup('Other maps', other);
+    const custom = el('input'); custom.type = 'text'; custom.placeholder = 'de_mymap, cs_other';
+    custom.value = s.maps.filter((m) => !known.includes(m)).join(', ');
+    const customLabel = el('label'); customLabel.append(el('span', '', 'Custom maps (names, comma separated)'), custom);
+    form.appendChild(customLabel);
+    const resetBtn = el('button', 'btn', 'Reset to Active Duty'); resetBtn.type = 'button';
+    resetBtn.addEventListener('click', () => {
+      activeChecks.forEach((c) => { c.checked = true; });
+      otherChecks.forEach((c) => { c.checked = false; });
+      custom.value = '';
     });
-    form.append(el('div', 'empty', 'Map pool'), mapsBox);
+    form.appendChild(resetBtn);
     const actions = el('div', 'actions');
     const save = el('button', 'btn', 'Save'); save.type = 'button';
     const cancel = el('button', 'btn', 'Cancel'); cancel.type = 'button';
@@ -162,7 +181,8 @@
         mr: +mr.value, overtime: ot.checked, ot_max_rounds: +otr.value, ot_start_money: +otm.value,
         knife_round: knife.checked, friendly_fire: ff.checked, dead_talk: dt.checked,
         timeouts_per_team: +to.value, timeout_seconds: +tos.value,
-        maps: mapChecks.filter((c) => c.checked).map((c) => c.dataset.map),
+        maps: [...new Set(activeChecks.concat(otherChecks).filter((c) => c.checked).map((c) => c.dataset.map)
+          .concat(custom.value.split(/[\s,]+/).map((m) => m.trim().toLowerCase()).filter(Boolean)))],
       } });
       $('settings-dialog').close();
     });

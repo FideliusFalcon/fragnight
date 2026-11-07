@@ -23,6 +23,7 @@ import (
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
 	"github.com/fideliusfalcon/fragnight/internal/matchzy"
 	"github.com/fideliusfalcon/fragnight/internal/pool"
+	"github.com/fideliusfalcon/fragnight/internal/settings"
 	"github.com/fideliusfalcon/fragnight/internal/store"
 )
 
@@ -83,6 +84,7 @@ func (s *Server) loadTemplates() {
 	funcs := template.FuncMap{
 		"open":    func(n int) []int { return make([]int, max(lobby.TeamSize-n, 0)) },
 		"seconds": func(ms int64) int64 { return (ms + 999) / 1000 },
+		"join":    strings.Join,
 		"inc":     func(i int) int { return i + 1 },
 		"sub":     func(a, b int) int { return a - b },
 		"adr":     func(damage, rounds int) float64 { return float64(damage) / float64(rounds) },
@@ -330,6 +332,8 @@ type lobbyView struct {
 	MyTeam     lobby.Team
 	Maps       []mapRow
 	TeamSize   int
+	ActiveMaps []string
+	OtherMaps  []string
 }
 
 type mapRow struct {
@@ -339,7 +343,8 @@ type mapRow struct {
 }
 
 func newLobbyView(snap lobby.Snapshot, me lobby.Player) lobbyView {
-	v := lobbyView{Snap: snap, Me: me, IsHost: snap.HostSteamID == me.SteamID, TeamSize: lobby.TeamSize}
+	v := lobbyView{Snap: snap, Me: me, IsHost: snap.HostSteamID == me.SteamID, TeamSize: lobby.TeamSize,
+		ActiveMaps: settings.DefaultMapPool, OtherMaps: settings.OtherMaps}
 	total := 0
 	for _, n := range snap.Tally {
 		total += n
