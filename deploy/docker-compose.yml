@@ -46,11 +46,29 @@ services:
       - ./cs2/pre.sh:/etc/pre.sh:ro
       - cs2-2-data:/home/steam/cs2-dedicated
 
-  # Placeholder; Task 13 replaces this with the real app image.
   lobby:
-    image: busybox
-    command: ["sleep", "infinity"]
+    image: fragnight:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.app
+    restart: unless-stopped
+    environment:
+      # The address players type to reach the lobby, e.g. http://192.168.1.10:8080
+      BASE_URL: ${BASE_URL:?set BASE_URL in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?set WEBHOOK_SECRET in .env}
+      ADMIN_STEAMIDS: ${ADMIN_STEAMIDS:-}
+      STEAM_API_KEY: ${STEAM_API_KEY:-}
+      DEV_LOGIN: ${DEV_LOGIN:-0}
+      DB_PATH: /data/lobby.db
+      SERVERS_FILE: /config/servers.json
+    volumes:
+      - lobby-data:/data
+      - ./servers.json:/config/servers.json:ro
+    ports:
+      - "${LOBBY_PORT:-8080}:8080"
 
 volumes:
+  lobby-data:
   cs2-1-data:
   cs2-2-data:

@@ -1,13 +1,15 @@
 module github.com/fideliusfalcon/fragnight
-go 1.27.3
-
-require modernc.org/sqlite v1.62.0
+go 1.26.0
 
 require (
-	github.com/coder/websocket v1.8.15 // indirect
+	github.com/coder/websocket v1.8.15
+	github.com/gorcon/rcon v1.4.0
+	modernc.org/sqlite v1.62.0
+)
+
+require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorcon/rcon v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

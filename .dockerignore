@@ -1,0 +1,6 @@
+.git
+.superpowers
+bin
+*.db
+docs
+deploy
