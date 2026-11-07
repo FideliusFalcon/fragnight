@@ -1,0 +1,81 @@
+{
+  "_unverified": true,
+  "matchid": "m-test-1",
+  "map_number": 0,
+  "event": "round_end",
+  "round_number": 5,
+  "round_time": 80000,
+  "reason": 1,
+  "winner": {
+    "side": "ct",
+    "team": "team1"
+  },
+  "team1": {
+    "id": "team1",
+    "name": "Team 1",
+    "series_score": 0,
+    "score": 3,
+    "score_ct": 1,
+    "score_t": 2,
+    "players": [
+      {
+        "steamid": "76561198000000001",
+        "name": "guso",
+        "stats": {
+          "kills": 20,
+          "deaths": 12,
+          "assists": 4,
+          "damage": 2300,
+          "head_shot_kills": 9,
+          "rounds_played": 24
+        }
+      },
+      {
+        "steamid": "76561198000000002",
+        "name": "emil",
+        "stats": {
+          "kills": 10,
+          "deaths": 15,
+          "assists": 6,
+          "damage": 1500,
+          "head_shot_kills": 3,
+          "rounds_played": 24
+        }
+      }
+    ]
+  },
+  "team2": {
+    "id": "team2",
+    "name": "Team 2",
+    "series_score": 0,
+    "score": 2,
+    "score_ct": 1,
+    "score_t": 1,
+    "players": [
+      {
+        "steamid": "76561198000000003",
+        "name": "mads",
+        "stats": {
+          "kills": 14,
+          "deaths": 16,
+          "assists": 2,
+          "damage": 1800,
+          "head_shot_kills": 5,
+          "rounds_played": 24
+        }
+      },
+      {
+        "steamid": "76561198000000004",
+        "name": "jonas",
+        "stats": {
+          "kills": 8,
+          "deaths": 19,
+          "assists": 3,
+          "damage": 1100,
+          "head_shot_kills": 2,
+          "rounds_played": 24
+        }
+      }
+    ]
+  }
+}

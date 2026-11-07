@@ -1,0 +1,4 @@
+[
+  {"id": "cs2-1", "name": "Server 1", "host": "192.168.1.10", "port": 27015, "rcon_password": "change-me-1"},
+  {"id": "cs2-2", "name": "Server 2", "host": "192.168.1.10", "port": 27016, "rcon_password": "change-me-2"}
+]

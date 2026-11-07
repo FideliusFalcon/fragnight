@@ -1,0 +1,56 @@
+# CS2 LAN lobby stack. Run on a Linux host. Add a server by copying a cs2-N block
+# (new name, volume, port) and adding a matching entry to servers.json.
+x-cs2: &cs2
+  image: joedwards32/cs2:latest
+  restart: unless-stopped
+  environment: &cs2env
+    CS2_LAN: "1"
+    CS2_MAXPLAYERS: "12"
+    CS2_GAMETYPE: "0"
+    CS2_GAMEMODE: "1"
+    CS2_STARTMAP: de_dust2
+    WEBHOOK_SECRET: ${WEBHOOK_SECRET:?set WEBHOOK_SECRET in .env}
+  volumes:
+    - ./cs2/pre.sh:/etc/pre.sh:ro
+
+services:
+  cs2-1:
+    <<: *cs2
+    container_name: cs2-1
+    environment:
+      <<: *cs2env
+      CS2_SERVERNAME: "LAN Server 1"
+      CS2_PORT: "27015"
+      CS2_RCONPW: ${RCON_PASSWORD_1:?set RCON_PASSWORD_1 in .env}
+      MATCHZY_LOG_URL: "http://lobby:8080/internal/events/cs2-1"
+    ports:
+      - "27015:27015/udp"
+      - "27015:27015/tcp"
+    volumes:
+      - ./cs2/pre.sh:/etc/pre.sh:ro
+      - cs2-1-data:/home/steam/cs2-dedicated
+
+  cs2-2:
+    <<: *cs2
+    container_name: cs2-2
+    environment:
+      <<: *cs2env
+      CS2_SERVERNAME: "LAN Server 2"
+      CS2_PORT: "27016"
+      CS2_RCONPW: ${RCON_PASSWORD_2:?set RCON_PASSWORD_2 in .env}
+      MATCHZY_LOG_URL: "http://lobby:8080/internal/events/cs2-2"
+    ports:
+      - "27016:27016/udp"
+      - "27016:27016/tcp"
+    volumes:
+      - ./cs2/pre.sh:/etc/pre.sh:ro
+      - cs2-2-data:/home/steam/cs2-dedicated
+
+  # Placeholder; Task 13 replaces this with the real app image.
+  lobby:
+    image: busybox
+    command: ["sleep", "infinity"]
+
+volumes:
+  cs2-1-data:
+  cs2-2-data:
