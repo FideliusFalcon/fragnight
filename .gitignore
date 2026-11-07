@@ -1,0 +1,4 @@
+.superpowers/
+*.db
+/bin/
+docs/
