@@ -1,0 +1,55 @@
+:root {
+  --olive: #4c5844; --dark: #3e4637; --light: #889180; --shadow: #292d23; --accent: #ffb000;
+  --text: #fff; --muted: #8c9284; --sel: #6b7a5f; --good: #7ec850; --bad: #c0392b;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #1f2319; color: var(--text); font: 12px Verdana, Tahoma, sans-serif; }
+body { padding: 24px 12px; }
+a { color: var(--accent); }
+.cs { background: var(--olive); border: 2px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); max-width: 900px; margin: 0 auto 16px; }
+.cs .title { background: var(--dark); padding: 6px 10px; font-weight: bold; border-bottom: 1px solid var(--shadow); display: flex; justify-content: space-between; gap: 12px; }
+.cs .title .who { font-weight: normal; display: flex; gap: 8px; align-items: center; }
+.cs .title img { width: 16px; height: 16px; }
+.cs .body { padding: 10px; }
+.tabs { display: flex; gap: 2px; margin-bottom: -1px; position: relative; z-index: 1; }
+.tab { padding: 4px 14px; border: 1px solid var(--light); border-bottom: none; background: var(--dark); color: #c8ccc4; text-decoration: none; }
+.tab.on { background: var(--olive); color: var(--accent); }
+.list, .panel { background: var(--dark); border: 1px solid; border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
+.panel { padding: 6px; margin-bottom: 8px; }
+.panel h4 { margin: 0 0 6px; font-size: 12px; color: var(--accent); border-bottom: 1px solid #5a6650; padding-bottom: 3px; display: flex; justify-content: space-between; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 3px 6px; background: var(--olive); border: 1px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); font-weight: normal; }
+td { padding: 3px 6px; }
+tr.lrow { cursor: pointer; }
+tr.sel td { background: var(--sel); }
+tr.live td { color: var(--muted); }
+.dot { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
+.dot.waiting { background: var(--good); } .dot.voting, .dot.awaiting_server { background: var(--accent); } .dot.in_match { background: var(--bad); } .dot.finished { background: var(--muted); }
+.btn { background: var(--olive); color: var(--text); border: 2px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); padding: 4px 14px; font: inherit; cursor: pointer; }
+.btn:active { border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
+.btn[disabled] { color: var(--muted); cursor: default; }
+input[type=text], input[type=number], select { background: var(--dark); color: var(--text); border: 1px solid; border-color: var(--shadow) var(--light) var(--light) var(--shadow); padding: 3px 5px; font: inherit; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+.row { display: flex; justify-content: space-between; padding: 2px 4px; }
+.row.me { background: var(--sel); }
+.row .host { color: var(--accent); }
+.empty { color: var(--muted); padding: 2px 4px; }
+.actions { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+.foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; flex-wrap: wrap; }
+.maps { display: flex; flex-wrap: wrap; gap: 6px; }
+.map { width: 112px; text-align: center; cursor: pointer; padding: 3px; border: 1px solid transparent; }
+.map.mine { border-color: var(--accent); }
+.map .img { height: 52px; background: #2b3025; border: 1px solid var(--light); display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.map.win .img { border-color: var(--accent); }
+.bar { height: 6px; background: #2b3025; margin-top: 2px; } .bar i { display: block; height: 6px; background: var(--accent); }
+.err { color: #ff8a70; min-height: 1.4em; }
+.connect { font-family: Consolas, monospace; background: #2b3025; padding: 6px; border: 1px solid var(--light); user-select: all; }
+.countdown { color: var(--accent); font-weight: bold; }
+dialog { background: var(--olive); color: var(--text); border: 2px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); padding: 0; max-width: 520px; width: 92vw; }
+dialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog form { padding: 10px; display: grid; gap: 6px; }
+dialog label { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.center { max-width: 360px; margin: 80px auto; text-align: center; }
+.brand { color: var(--accent); letter-spacing: .5px; }
+td { white-space: nowrap; }

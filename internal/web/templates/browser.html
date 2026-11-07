@@ -1,0 +1,41 @@
+{{define "content"}}
+<div class="cs">
+  {{template "titlebar" .}}
+  <div class="body">
+    {{template "tabs" .}}
+    <div class="list">
+      <table id="lobby-table">
+        <thead><tr><th style="width:20px"></th><th>Lobby</th><th>Host</th><th style="width:70px">Players</th><th style="width:120px">Map</th><th style="width:150px">Status</th></tr></thead>
+        <tbody id="lobby-rows">
+        {{range .Data}}
+          <tr class="lrow{{if eq .Status "in_match"}} live{{end}}" data-id="{{.ID}}">
+            <td><span class="dot {{.Status}}"></span></td><td>{{.Name}}</td><td>{{.HostName}}</td>
+            <td>{{.Players}} / {{.Capacity}}</td><td>{{.MapInfo}}</td>
+            <td>{{statusLabel .Status}}{{if eq .Status "voting"}} {{seconds .VoteRemainingMS}}s{{end}}{{if eq .Status "in_match"}} {{index .Score 0}}–{{index .Score 1}}{{end}}</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      <div id="empty" class="empty" style="padding:30px;text-align:center">{{if not .Data}}No public lobbies yet. Create one!{{end}}</div>
+    </div>
+    <div class="foot">
+      <span id="count" class="empty"></span>
+      <span class="actions">
+        <button class="btn" id="refresh">Refresh</button>
+        <button class="btn" id="create">Create Lobby…</button>
+        <button class="btn" id="join" disabled>Join</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<dialog id="create-dialog">
+  <div class="title"><span>Create Lobby</span></div>
+  <form method="post" action="/lobbies">
+    <label>Name <input type="text" name="name" maxlength="40" placeholder="LAN Night" autofocus></label>
+    <label>Public (listed on the front screen) <input type="checkbox" name="public" checked></label>
+    <div class="actions"><button class="btn">Create</button> <button class="btn" type="button" id="create-cancel">Cancel</button></div>
+  </form>
+</dialog>
+{{end}}
+{{define "scripts"}}<script src="/static/browser.js"></script>{{end}}

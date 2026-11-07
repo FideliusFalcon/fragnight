@@ -1,12 +1,22 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log"
+	"math/rand"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"github.com/fideliusfalcon/fragnight/internal/auth"
 	"github.com/fideliusfalcon/fragnight/internal/config"
+	"github.com/fideliusfalcon/fragnight/internal/lobby"
 	"github.com/fideliusfalcon/fragnight/internal/store"
+	"github.com/fideliusfalcon/fragnight/internal/web"
 )
 
 func main() {
@@ -28,5 +38,39 @@ func main() {
 		log.Fatal(err)
 	}
 	defer st.Close()
-	log.Printf("config ok: %d servers, db %s", len(cfg.Servers), cfg.DBPath)
+
+	lobbies := lobby.NewManager(time.Now, rand.New(rand.NewSource(time.Now().UnixNano())))
+	handler := web.New(web.Deps{
+		Config:   cfg,
+		Store:    st,
+		Sessions: auth.NewSessions([]byte(cfg.SessionSecret), 30*24*time.Hour),
+		Lobbies:  lobbies,
+	})
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				lobbies.Tick()
+			}
+		}
+	}()
+
+	srv := &http.Server{Addr: cfg.ListenAddr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		srv.Shutdown(shutdown)
+	}()
+	log.Printf("listening on %s (base URL %s, %d servers)", cfg.ListenAddr, cfg.BaseURL, len(cfg.Servers))
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
+	}
 }

@@ -1,0 +1,196 @@
+// Live lobby page. All names and text are set with textContent, never innerHTML.
+(function () {
+  const root = document.getElementById('lobby');
+  const lobbyID = root.dataset.id;
+  const TEAM_SIZE = 5;
+  const $ = (id) => document.getElementById(id);
+  let state = null;
+  let you = root.dataset.me;
+  let deadline = 0;
+  let ws = null;
+  let closed = false;
+
+  function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function memberRow(m, isHost, hostID) {
+    const row = el('div', 'row' + (m.steamid === you ? ' me' : ''));
+    const name = el('span', m.steamid === hostID ? 'host' : '', m.name + (m.steamid === hostID ? ' ★' : ''));
+    row.appendChild(name);
+    const right = el('span');
+    if (isHost && m.steamid !== you && (state.status === 'waiting' || state.status === 'voting')) {
+      const k = el('button', 'btn', 'Kick');
+      k.style.padding = '0 6px';
+      k.addEventListener('click', () => send({ type: 'kick', steamid: m.steamid }));
+      right.appendChild(k);
+    }
+    row.appendChild(right);
+    return row;
+  }
+
+  function renderTeam(n, members) {
+    const panel = $('team' + n);
+    panel.querySelector('.count').textContent = members.length + ' / ' + TEAM_SIZE;
+    const rows = panel.querySelector('.rows');
+    rows.replaceChildren();
+    const isHost = state.host === you;
+    for (const m of members) rows.appendChild(memberRow(m, isHost, state.host));
+    for (let i = members.length; i < TEAM_SIZE; i++) rows.appendChild(el('div', 'empty', '— open slot —'));
+    const btn = panel.querySelector('button[data-team]');
+    const mine = (state.members.find((m) => m.steamid === you) || {}).team;
+    btn.disabled = state.status !== 'waiting' || mine === n || members.length >= TEAM_SIZE;
+    btn.textContent = mine === n ? 'You are on Team ' + n : (members.length >= TEAM_SIZE ? 'Team full' : 'Join Team ' + n);
+  }
+
+  function renderMaps() {
+    const wrap = $('maps');
+    wrap.replaceChildren();
+    const total = Object.values(state.tally || {}).reduce((a, b) => a + b, 0);
+    const me = state.members.find((m) => m.steamid === you) || {};
+    for (const name of state.settings.maps) {
+      const votes = (state.tally || {})[name] || 0;
+      const card = el('div', 'map' + (me.vote === name ? ' mine' : '') + (state.map === name ? ' win' : ''));
+      card.dataset.map = name;
+      card.appendChild(el('div', 'img', name));
+      const bar = el('div', 'bar');
+      const fill = document.createElement('i');
+      fill.style.width = (total ? Math.round(votes * 100 / total) : 0) + '%';
+      bar.appendChild(fill);
+      card.append(bar, el('span', '', String(votes)));
+      card.addEventListener('click', () => send({ type: 'vote', map: name }));
+      wrap.appendChild(card);
+    }
+  }
+
+  function renderCountdown() {
+    const s = $('vote-status');
+    if (!state) return;
+    if (state.status === 'voting') {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      s.textContent = 'Voting ends in 0:' + String(left).padStart(2, '0');
+    } else if (state.status === 'awaiting_server') {
+      s.textContent = state.map ? state.map + ' · waiting for a free server' : 'waiting for a free server';
+    } else if (state.status === 'in_match') {
+      s.textContent = (state.map || '') + ' · ' + state.score[0] + '–' + state.score[1];
+    } else if (state.status === 'finished') {
+      s.textContent = 'Match finished ' + state.score[0] + '–' + state.score[1];
+    } else {
+      s.textContent = 'Host presses Ready to start the 30 s vote';
+    }
+  }
+
+  function render() {
+    if (!state) return;
+    $('lobby-title').textContent = state.name + (state.public ? '' : ' (private)');
+    const count = $('lobby-count');
+    count.replaceChildren(document.createTextNode(state.members.length + ' players · '));
+    const a = el('a', '', 'Lobby list');
+    a.href = '/';
+    count.appendChild(a);
+
+    renderTeam(1, state.members.filter((m) => m.team === 1));
+    renderTeam(2, state.members.filter((m) => m.team === 2));
+    const un = state.members.filter((m) => m.team === 0);
+    const unPanel = $('unassigned');
+    unPanel.querySelector('.count').textContent = String(un.length);
+    const rows = unPanel.querySelector('.rows');
+    rows.replaceChildren();
+    for (const m of un) rows.appendChild(memberRow(m, state.host === you, state.host));
+    const leaveTeam = unPanel.querySelector('button[data-team]');
+    const mine = (state.members.find((m) => m.steamid === you) || {}).team;
+    leaveTeam.disabled = state.status !== 'waiting' || mine === 0;
+
+    renderMaps();
+    renderCountdown();
+
+    const isHost = state.host === you;
+    $('host-controls').hidden = !isHost;
+    const ready = $('ready-btn');
+    if (state.status === 'voting') { ready.textContent = 'Stop countdown'; ready.disabled = false; }
+    else { ready.textContent = 'Ready (start vote)'; ready.disabled = state.status !== 'waiting'; }
+    $('settings-btn').disabled = state.status !== 'waiting';
+
+    const box = $('connect-box');
+    box.hidden = !state.connect;
+    $('connect').textContent = state.connect || '';
+    if (state.error) $('msg').textContent = state.error;
+  }
+
+  function openSettings() {
+    const form = $('settings-form');
+    const s = state.settings;
+    form.replaceChildren();
+    function field(label, input) {
+      const l = el('label'); l.append(el('span', '', label), input); form.appendChild(l); return input;
+    }
+    function num(v, min) { const i = el('input'); i.type = 'number'; i.value = v; i.min = min; return i; }
+    function chk(v) { const i = el('input'); i.type = 'checkbox'; i.checked = v; return i; }
+    const mr = field('Rounds per half (MR)', num(s.mr, 1));
+    const ot = field('Overtime', chk(s.overtime));
+    const otr = field('Overtime rounds (even)', num(s.ot_max_rounds, 2));
+    const otm = field('Overtime start money', num(s.ot_start_money, 0));
+    const knife = field('Knife round', chk(s.knife_round));
+    const ff = field('Friendly fire', chk(s.friendly_fire));
+    const dt = field('Dead talk', chk(s.dead_talk));
+    const to = field('Timeouts per team', num(s.timeouts_per_team, 0));
+    const tos = field('Timeout seconds', num(s.timeout_seconds, 0));
+    const mapsBox = el('div', 'maps');
+    const all = ['de_ancient', 'de_anubis', 'de_dust2', 'de_inferno', 'de_mirage', 'de_nuke', 'de_overpass'];
+    const mapChecks = all.map((name) => {
+      const l = el('label'); const c = chk(s.maps.includes(name)); c.dataset.map = name;
+      l.append(c, el('span', '', ' ' + name)); mapsBox.appendChild(l); return c;
+    });
+    form.append(el('div', 'empty', 'Map pool'), mapsBox);
+    const actions = el('div', 'actions');
+    const save = el('button', 'btn', 'Save'); save.type = 'button';
+    const cancel = el('button', 'btn', 'Cancel'); cancel.type = 'button';
+    actions.append(save, cancel); form.appendChild(actions);
+    cancel.addEventListener('click', () => $('settings-dialog').close());
+    save.addEventListener('click', () => {
+      send({ type: 'settings', settings: {
+        mr: +mr.value, overtime: ot.checked, ot_max_rounds: +otr.value, ot_start_money: +otm.value,
+        knife_round: knife.checked, friendly_fire: ff.checked, dead_talk: dt.checked,
+        timeouts_per_team: +to.value, timeout_seconds: +tos.value,
+        maps: mapChecks.filter((c) => c.checked).map((c) => c.dataset.map),
+      } });
+      $('settings-dialog').close();
+    });
+    $('settings-dialog').showModal();
+  }
+
+  function connect() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/lobby/' + encodeURIComponent(lobbyID));
+    ws.onmessage = (ev) => {
+      const m = JSON.parse(ev.data);
+      if (m.type === 'state') {
+        state = m.lobby; you = m.you || you;
+        deadline = Date.now() + (state.vote_remaining_ms || 0);
+        if (!state.error) $('msg').textContent = '';
+        render();
+      } else if (m.type === 'error') {
+        $('msg').textContent = m.message;
+      } else if (m.type === 'left' || m.type === 'closed') {
+        closed = true; location.href = '/';
+      }
+    };
+    ws.onclose = () => { if (!closed) setTimeout(connect, 1500); };
+  }
+
+  for (const b of document.querySelectorAll('button[data-team]')) {
+    b.addEventListener('click', () => send({ type: 'team', team: +b.dataset.team }));
+  }
+  $('ready-btn').addEventListener('click', () => send({ type: state && state.status === 'voting' ? 'stop' : 'ready' }));
+  $('settings-btn').addEventListener('click', openSettings);
+  $('leave').addEventListener('click', () => send({ type: 'leave' }));
+  $('copy-link').addEventListener('click', () => {
+    if (navigator.clipboard) navigator.clipboard.writeText(location.href);
+    $('msg').textContent = 'Invite link copied: ' + location.href;
+  });
+  connect();
+  setInterval(renderCountdown, 500);
+})();

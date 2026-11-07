@@ -1,0 +1,55 @@
+{{define "teamPanel"}}
+<div class="panel" id="team{{.N}}">
+  <h4><span>Team {{.N}}</span><span class="count">{{len .Members}} / {{.Size}}</span></h4>
+  <div class="rows">
+  {{range .Members}}<div class="row{{if eq .SteamID $.Me.SteamID}} me{{end}}"><span>{{.Name}}</span><span></span></div>{{end}}
+  {{range open (len .Members)}}<div class="empty">— open slot —</div>{{end}}
+  </div>
+  <div class="actions"><button class="btn" data-team="{{.N}}">Join Team {{.N}}</button></div>
+</div>
+{{end}}
+{{define "content"}}
+{{with .Data}}
+<div class="cs" id="lobby" data-id="{{.Snap.ID}}" data-me="{{.Me.SteamID}}">
+  <div class="title"><span id="lobby-title">{{.Snap.Name}}</span><span id="lobby-count">{{len .Snap.Members}} players · <a href="/">Lobby list</a></span></div>
+  <div class="body">
+    <div class="grid">
+      {{template "teamPanel" (dict2 .Team1 1 $.Data.TeamSize .Me)}}
+      {{template "teamPanel" (dict2 .Team2 2 $.Data.TeamSize .Me)}}
+    </div>
+    <div class="panel" id="unassigned">
+      <h4><span>Not on a team</span><span class="count">{{len .Unassigned}}</span></h4>
+      <div class="rows">{{range .Unassigned}}<div class="row{{if eq .SteamID $.Data.Me.SteamID}} me{{end}}"><span>{{.Name}}</span><span></span></div>{{end}}</div>
+      <div class="actions"><button class="btn" data-team="0">Leave team</button></div>
+    </div>
+    <div class="panel" id="vote">
+      <h4><span>Vote for a map</span><span id="vote-status" class="countdown"></span></h4>
+      <div class="maps" id="maps">
+        {{range .Maps}}<div class="map" data-map="{{.Name}}"><div class="img">{{.Name}}</div><div class="bar"><i style="width:{{.Pct}}%"></i></div><span>{{.Votes}}</span></div>{{end}}
+      </div>
+    </div>
+    <div id="connect-box" class="panel" hidden>
+      <h4><span>Connect to the server</span></h4>
+      <div class="connect" id="connect"></div>
+      <p class="empty">Paste this into the CS2 console.</p>
+    </div>
+    <div class="err" id="msg"></div>
+    <div class="foot">
+      <span class="actions">
+        <button class="btn" id="leave">Leave lobby</button>
+        <button class="btn" id="copy-link">Copy invite link</button>
+      </span>
+      <span class="actions" id="host-controls"{{if not .IsHost}} hidden{{end}}>
+        <button class="btn" id="settings-btn">Settings…</button>
+        <button class="btn" id="ready-btn">Ready (start vote)</button>
+      </span>
+    </div>
+  </div>
+</div>
+<dialog id="settings-dialog">
+  <div class="title"><span>Match settings</span></div>
+  <form id="settings-form" method="dialog"></form>
+</dialog>
+{{end}}
+{{end}}
+{{define "scripts"}}<script src="/static/lobby.js"></script>{{end}}

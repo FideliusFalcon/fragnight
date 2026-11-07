@@ -1,0 +1,21 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Fragnight</title>
+<link rel="stylesheet" href="/static/cs16.css">
+</head>
+<body>
+{{template "content" .}}
+{{block "scripts" .}}{{end}}
+</body>
+</html>
+{{end}}
+{{define "titlebar"}}<div class="title"><span>{{.Title}}</span>{{if .Me}}<span class="who">{{if .Me.AvatarURL}}<img src="{{.Me.AvatarURL}}" alt="" referrerpolicy="no-referrer">{{end}}{{.Me.Name}}
+<form method="post" action="/logout" style="display:inline"><button class="btn" style="padding:0 8px">Log out</button></form></span>{{end}}</div>{{end}}
+{{define "tabs"}}<div class="tabs">
+<a class="tab{{if eq .Tab "public"}} on{{end}}" href="/">Public</a>
+<a class="tab{{if eq .Tab "history"}} on{{end}}" href="/history">History</a>
+<a class="tab{{if eq .Tab "stats"}} on{{end}}" href="/stats">Stats</a>
+</div>{{end}}

@@ -1,0 +1,19 @@
+{{define "content"}}
+<div class="cs center">
+  <div class="title"><span><b class="brand">Fragnight</b> · Sign in</span></div>
+  <div class="body">
+    <p>Sign in with your Steam account to find and create lobbies.</p>
+    {{with .Data.Error}}<p class="err">{{.}}</p>{{end}}
+    <p><a class="btn" style="text-decoration:none;display:inline-block" href="/auth/steam">Sign in through Steam</a></p>
+    {{if .Data.Dev}}
+    <hr>
+    <form method="get" action="/auth/dev">
+      <p>Developer login (DEV_LOGIN=1)</p>
+      <p><input type="text" name="steamid" placeholder="17-digit SteamID" pattern="\d{17}" required></p>
+      <p><input type="text" name="name" placeholder="Name"></p>
+      <p><button class="btn">Dev login</button></p>
+    </form>
+    {{end}}
+  </div>
+</div>
+{{end}}
