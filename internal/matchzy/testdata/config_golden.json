@@ -1,0 +1,21 @@
+{
+  "matchid": "m-test-1",
+  "num_maps": 1,
+  "maplist": ["de_dust2"],
+  "skip_veto": true,
+  "players_per_team": 2,
+  "map_sides": ["knife"],
+  "clinch_series": true,
+  "team1": {"name": "Team 1", "players": {"76561198000000001": "guso", "76561198000000002": "emil"}},
+  "team2": {"name": "Team 2", "players": {"76561198000000003": "mads", "76561198000000004": "jonas"}},
+  "cvars": {
+    "mp_maxrounds": "24",
+    "mp_overtime_enable": "1",
+    "mp_overtime_maxrounds": "6",
+    "mp_overtime_startmoney": "10000",
+    "mp_friendlyfire": "1",
+    "sv_deadtalk": "0",
+    "mp_team_timeout_max": "4",
+    "mp_team_timeout_time": "30"
+  }
+}
