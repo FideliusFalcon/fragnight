@@ -120,6 +120,11 @@
     box.hidden = !state.connect;
     $('connect').textContent = state.connect || '';
     if (state.error) $('msg').textContent = state.error;
+    if (state.status === 'finished' && state.match_id) {
+      const msg = $('msg'); msg.replaceChildren();
+      const link = el('a', '', 'View the scoreboard'); link.href = '/match/' + encodeURIComponent(state.match_id);
+      msg.appendChild(link);
+    }
   }
 
   function openSettings() {

@@ -72,6 +72,7 @@ type Snapshot struct {
 	Connect         string         `json:"connect"`
 	Score           [2]int         `json:"score"`
 	Error           string         `json:"error"`
+	MatchID         string         `json:"match_id"`
 }
 
 // Summary is one row of the lobby browser.

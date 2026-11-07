@@ -129,6 +129,9 @@ func TestStart_LoadsMatchAndSetsConnectString(t *testing.T) {
 	if err != nil || m.Status != store.MatchRunning || m.ServerID != "s1" || m.Map != "de_dust2" {
 		t.Fatalf("match %+v %v", m, err)
 	}
+	if snap.MatchID != m.ID {
+		t.Fatalf("lobby match id %q, want %q", snap.MatchID, m.ID)
+	}
 	if !strings.Contains(m.ConfigJSON, steam(1)) || !strings.Contains(m.ConfigJSON, "de_dust2") {
 		t.Fatalf("config %s", m.ConfigJSON)
 	}

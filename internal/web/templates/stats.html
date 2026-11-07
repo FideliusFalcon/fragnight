@@ -1,0 +1,21 @@
+{{define "content"}}
+<div class="cs">
+  {{template "titlebar" .}}
+  <div class="body">
+    {{template "tabs" .}}
+    <div class="list">
+      <table>
+        <thead><tr><th style="width:30px">#</th><th>Player</th><th>Rating</th><th>Matches</th><th>W–L</th><th>K/D</th><th>ADR</th><th>HS%</th></tr></thead>
+        <tbody>
+        {{range $i, $p := .Data}}
+          <tr><td>{{inc $i}}</td><td><a href="/player/{{.SteamID}}">{{.Name}}</a></td><td>{{.Elo}}</td><td>{{.Matches}}</td>
+            <td>{{.Wins}}–{{sub .Matches .Wins}}</td><td>{{printf "%.2f" .KD}}</td><td>{{printf "%.1f" .ADR}}</td><td>{{printf "%.0f" .HSPercent}}%</td></tr>
+        {{else}}
+          <tr><td colspan="8" class="empty" style="padding:30px;text-align:center">No finished matches yet.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{end}}

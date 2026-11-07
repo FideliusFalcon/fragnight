@@ -142,3 +142,13 @@ func (m *Manager) SetScore(id string, s1, s2 int) {
 		m.publish(s)
 	}
 }
+
+// SetMatchID records which match the lobby is playing, so the page can link to its scoreboard.
+func (m *Manager) SetMatchID(id, matchID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if s, ok := m.lobbies[id]; ok {
+		s.matchID = matchID
+		m.publish(s)
+	}
+}

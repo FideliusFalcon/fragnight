@@ -1,0 +1,31 @@
+{{define "content"}}
+<div class="cs">
+  {{template "titlebar" .}}
+  <div class="body">
+    <div class="panel">
+      <h4><span>Servers</span></h4>
+      <table>
+        <thead><tr><th>Name</th><th>Address</th><th>State</th><th></th></tr></thead>
+        <tbody>
+        {{range .Data.Servers}}
+          <tr><td>{{.Name}}</td><td>{{.Host}}:{{.Port}}</td><td>{{if .Busy}}Busy (lobby {{.LobbyID}}){{else}}Free{{end}}</td>
+            <td><form method="post" action="/admin/servers/{{.ID}}/reset"><button class="btn">Reset</button></form></td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h4><span>Recent matches</span><span class="empty">Deleting a match removes its stats; ratings are not reverted.</span></h4>
+      <table>
+        <thead><tr><th>Lobby</th><th>Map</th><th>Status</th><th>Score</th><th></th></tr></thead>
+        <tbody>
+        {{range .Data.Matches}}
+          <tr><td><a href="/match/{{.ID}}">{{.LobbyName}}</a></td><td>{{.Map}}</td><td>{{.Status}}</td><td>{{.Team1Score}}–{{.Team2Score}}</td>
+            <td><form method="post" action="/admin/matches/{{.ID}}/delete"><button class="btn">Delete</button></form></td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{end}}

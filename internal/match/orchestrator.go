@@ -131,6 +131,7 @@ func (o *Orchestrator) launch(lobbyID string, srv pool.Server) {
 	if err := o.Store.SetMatchRunning(ctx, m.ID, srv.ID); err != nil {
 		log.Printf("mark running: %v", err)
 	}
+	o.Lobbies.SetMatchID(lobbyID, m.ID)
 	o.Lobbies.SetLive(lobbyID, fmt.Sprintf("connect %s:%d; password %s", srv.Host, srv.Port, password))
 	o.Lobbies.SetStatus(lobbyID, lobby.StatusInMatch, "")
 }

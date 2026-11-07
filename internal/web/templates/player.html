@@ -1,0 +1,19 @@
+{{define "content"}}
+<div class="cs">
+  {{template "titlebar" .}}
+  <div class="body">
+    {{template "tabs" .}}
+    <div class="panel">
+      <h4><span>{{.Data.Name}}</span><span>Rating {{.Data.Elo}}</span></h4>
+      <div class="row"><span>Matches</span><span>{{.Data.Matches}}</span></div>
+      <div class="row"><span>Wins / losses</span><span>{{.Data.Wins}} / {{sub .Data.Matches .Data.Wins}}</span></div>
+      <div class="row"><span>Kills / deaths / assists</span><span>{{.Data.Kills}} / {{.Data.Deaths}} / {{.Data.Assists}}</span></div>
+      <div class="row"><span>K/D</span><span>{{printf "%.2f" .Data.KD}}</span></div>
+      <div class="row"><span>ADR</span><span>{{printf "%.1f" .Data.ADR}}</span></div>
+      <div class="row"><span>Headshot %</span><span>{{printf "%.0f" .Data.HSPercent}}%</span></div>
+    </div>
+    <h4 style="color:var(--accent)">Recent matches</h4>
+    {{template "matchTable" .Data.Recent}}
+  </div>
+</div>
+{{end}}

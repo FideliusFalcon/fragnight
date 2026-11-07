@@ -165,3 +165,24 @@ func (o *Orchestrator) serverByID(id string) (pool.Server, bool) {
 	}
 	return pool.Server{}, false
 }
+
+// PoolState lists the CS2 servers and who holds them (for the admin page).
+func (o *Orchestrator) PoolState() []pool.ServerState { return o.Pool.State() }
+
+// ResetServer is the admin recovery action: it aborts whatever match is running
+// on the server and returns the server to the pool, even if nothing is running.
+func (o *Orchestrator) ResetServer(serverID string) error {
+	if _, ok := o.serverByID(serverID); !ok {
+		return errors.New("unknown server")
+	}
+	m, err := o.Store.RunningMatchOnServer(context.Background(), serverID)
+	if err == nil {
+		o.endEarly(m, "Match aborted by an admin.")
+		return nil
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	o.resetAndRelease(serverID, false)
+	return nil
+}

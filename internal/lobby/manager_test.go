@@ -340,3 +340,14 @@ func TestSlowSubscriberNeverBlocksManager(t *testing.T) {
 		t.Fatal("manager blocked on slow subscriber")
 	}
 }
+
+func TestSetMatchID_AppearsInSnapshot(t *testing.T) {
+	m := newMgr()
+	s := mustCreate(t, m, pl(1), true)
+	m.SetMatchID(s.ID, "match-123")
+	got, _ := m.Get(s.ID)
+	if got.MatchID != "match-123" {
+		t.Fatalf("match id %q", got.MatchID)
+	}
+	m.SetMatchID("nope", "x") // unknown lobby is harmless
+}

@@ -201,3 +201,42 @@ func TestLobbyGone_AbortsRunningMatch(t *testing.T) {
 		t.Fatal("server still held by a deleted lobby")
 	}
 }
+
+func TestResetServer_AbortsRunningMatchAndReleases(t *testing.T) {
+	r := newRig(t, 1)
+	lobbyID, matchID := r.runningMatch(t, 1)
+	if err := r.o.ResetServer("s1"); err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := r.st.GetMatch(context.Background(), matchID); m.Status != store.MatchAborted {
+		t.Fatalf("status %s", m.Status)
+	}
+	snap, _ := r.lobbies.Get(lobbyID)
+	if snap.Status != lobby.StatusWaiting || snap.Connect != "" {
+		t.Fatalf("lobby %s %q", snap.Status, snap.Connect)
+	}
+	if st := r.pool.State(); st[0].Busy {
+		t.Fatal("server still busy")
+	}
+}
+
+func TestResetServer_FreesLeakedServer(t *testing.T) {
+	r := newRig(t, 1)
+	r.pool.Acquire("ghost-lobby") // held, but no match is running on it
+	if err := r.o.ResetServer("s1"); err != nil {
+		t.Fatal(err)
+	}
+	if st := r.pool.State(); st[0].Busy {
+		t.Fatal("leaked server not freed")
+	}
+	if err := r.o.ResetServer("nope"); err == nil {
+		t.Fatal("unknown server accepted")
+	}
+}
+
+func TestPoolState_ListsServers(t *testing.T) {
+	r := newRig(t, 2)
+	if got := r.o.PoolState(); len(got) != 2 {
+		t.Fatalf("%+v", got)
+	}
+}

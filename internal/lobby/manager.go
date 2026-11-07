@@ -25,6 +25,7 @@ type state struct {
 	mapName  string
 	connect  string
 	errMsg   string
+	matchID  string
 	score    [2]int
 	subs     map[int]chan Snapshot
 }
@@ -108,7 +109,7 @@ func (m *Manager) snapshot(s *state) Snapshot {
 	snap := Snapshot{
 		ID: s.id, Name: s.name, HostSteamID: s.host, Public: s.public, Status: s.status,
 		Members: slices.Clone(s.members), Settings: s.settings, Tally: s.tally(),
-		Map: s.mapName, Connect: s.connect, Score: s.score, Error: s.errMsg,
+		Map: s.mapName, Connect: s.connect, Score: s.score, Error: s.errMsg, MatchID: s.matchID,
 	}
 	snap.Settings.Maps = slices.Clone(s.settings.Maps)
 	if s.status == StatusVoting {

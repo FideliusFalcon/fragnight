@@ -18,6 +18,7 @@ import (
 	"github.com/fideliusfalcon/fragnight/internal/config"
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
 	"github.com/fideliusfalcon/fragnight/internal/matchzy"
+	"github.com/fideliusfalcon/fragnight/internal/pool"
 	"github.com/fideliusfalcon/fragnight/internal/store"
 )
 
@@ -25,7 +26,19 @@ type fakeMatches struct {
 	mu     sync.Mutex
 	events []string
 	aborts []string
+	resets []string
 	err    error
+}
+
+func (f *fakeMatches) ResetServer(serverID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resets = append(f.resets, serverID)
+	return f.err
+}
+
+func (f *fakeMatches) PoolState() []pool.ServerState {
+	return []pool.ServerState{{Server: pool.Server{ID: "cs2-1", Name: "Server 1", Host: "10.0.0.5", Port: 27015}, Busy: true, LobbyID: "abc"}}
 }
 
 func (f *fakeMatches) HandleEvent(serverID string, ev matchzy.Event) error {
@@ -61,7 +74,7 @@ func newEnv(t *testing.T, devLogin bool) *env {
 	fm := &fakeMatches{}
 	srv := New(Deps{
 		Matches:  fm,
-		Config:   config.Config{BaseURL: "http://lan.local", DevLogin: devLogin, WebhookSecret: "hook-secret"},
+		Config:   config.Config{BaseURL: "http://lan.local", DevLogin: devLogin, WebhookSecret: "hook-secret", AdminSteamIDs: []string{sid(900)}},
 		Store:    st,
 		Sessions: auth.NewSessions([]byte("test-secret"), time.Hour),
 		Lobbies:  lm,

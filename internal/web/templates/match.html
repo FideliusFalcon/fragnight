@@ -1,0 +1,28 @@
+{{define "teamTable"}}
+<div class="list" style="margin-bottom:8px">
+  <table>
+    <thead><tr><th>{{.Title}}</th><th>K</th><th>D</th><th>A</th><th>ADR</th><th>HS</th><th>Rating</th></tr></thead>
+    <tbody>
+    {{range .Rows}}
+      <tr><td><a href="/player/{{.SteamID}}">{{.Name}}</a></td><td>{{.Kills}}</td><td>{{.Deaths}}</td><td>{{.Assists}}</td>
+        <td>{{if .Rounds}}{{printf "%.1f" (adr .Damage .Rounds)}}{{else}}–{{end}}</td><td>{{.Headshots}}</td><td>{{.EloAfter}} ({{delta .EloDelta}})</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{define "content"}}
+<div class="cs">
+  {{template "titlebar" .}}
+  <div class="body">
+    {{template "tabs" .}}
+    <div class="panel">
+      <h4><span>{{.Data.M.LobbyName}} · {{.Data.M.Map}}</span><span>{{.Data.M.Status}}</span></h4>
+      <div style="font-size:18px;text-align:center;padding:6px">Team 1 &nbsp;<b>{{.Data.M.Team1Score}}</b> – <b>{{.Data.M.Team2Score}}</b>&nbsp; Team 2</div>
+      <div style="text-align:center" class="empty">{{if eq .Data.M.Status "finished"}}{{if eq .Data.M.Winner 1}}Team 1 wins{{else if eq .Data.M.Winner 2}}Team 2 wins{{else}}Draw{{end}}{{end}}</div>
+    </div>
+    {{template "teamTable" (dict "Title" "Team 1" "Rows" .Data.Team1)}}
+    {{template "teamTable" (dict "Title" "Team 2" "Rows" .Data.Team2)}}
+  </div>
+</div>
+{{end}}

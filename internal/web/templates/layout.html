@@ -12,10 +12,25 @@
 </body>
 </html>
 {{end}}
-{{define "titlebar"}}<div class="title"><span>{{.Title}}</span>{{if .Me}}<span class="who">{{if .Me.AvatarURL}}<img src="{{.Me.AvatarURL}}" alt="" referrerpolicy="no-referrer">{{end}}{{.Me.Name}}
+{{define "titlebar"}}<div class="title"><span><b class="brand">Fragnight</b> · {{.Title}}</span>{{if .Me}}<span class="who">{{if .Me.AvatarURL}}<img src="{{.Me.AvatarURL}}" alt="" referrerpolicy="no-referrer">{{end}}{{.Me.Name}}
 <form method="post" action="/logout" style="display:inline"><button class="btn" style="padding:0 8px">Log out</button></form></span>{{end}}</div>{{end}}
 {{define "tabs"}}<div class="tabs">
 <a class="tab{{if eq .Tab "public"}} on{{end}}" href="/">Public</a>
 <a class="tab{{if eq .Tab "history"}} on{{end}}" href="/history">History</a>
 <a class="tab{{if eq .Tab "stats"}} on{{end}}" href="/stats">Stats</a>
 </div>{{end}}
+{{define "matchTable"}}
+<div class="list">
+  <table>
+    <thead><tr><th>Played</th><th>Lobby</th><th>Map</th><th>Score</th><th>Result</th><th>Rating</th></tr></thead>
+    <tbody>
+    {{range .}}
+      <tr><td>{{when .EndedAt}}</td><td><a href="/match/{{.ID}}">{{.LobbyName}}</a></td><td>{{.Map}}</td><td>{{.Team1Score}}–{{.Team2Score}}</td>
+        <td>{{if eq .Winner 0}}Draw{{else if eq .Winner .MyTeam}}Win{{else}}Loss{{end}}</td><td>{{delta .EloDelta}}</td></tr>
+    {{else}}
+      <tr><td colspan="6" class="empty" style="padding:30px;text-align:center">No finished matches yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

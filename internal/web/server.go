@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/fideliusfalcon/fragnight/internal/config"
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
 	"github.com/fideliusfalcon/fragnight/internal/matchzy"
+	"github.com/fideliusfalcon/fragnight/internal/pool"
 	"github.com/fideliusfalcon/fragnight/internal/store"
 )
 
@@ -31,6 +33,8 @@ var staticFS embed.FS
 type Matches interface {
 	HandleEvent(serverID string, ev matchzy.Event) error
 	Abort(lobbyID, actor string) error
+	ResetServer(serverID string) error
+	PoolState() []pool.ServerState
 }
 
 // Deps are the collaborators the web layer needs.
@@ -76,6 +80,30 @@ func (s *Server) loadTemplates() {
 	funcs := template.FuncMap{
 		"open":    func(n int) []int { return make([]int, max(lobby.TeamSize-n, 0)) },
 		"seconds": func(ms int64) int64 { return (ms + 999) / 1000 },
+		"inc":     func(i int) int { return i + 1 },
+		"sub":     func(a, b int) int { return a - b },
+		"adr":     func(damage, rounds int) float64 { return float64(damage) / float64(rounds) },
+		"dict": func(kv ...any) map[string]any {
+			m := map[string]any{}
+			for i := 0; i+1 < len(kv); i += 2 {
+				m[kv[i].(string)] = kv[i+1]
+			}
+			return m
+		},
+		// delta formats a rating change like +16 or -16. It only ever contains a
+		// sign and digits, so marking it safe avoids html/template writing "&#43;".
+		"delta": func(n int) template.HTML {
+			if n > 0 {
+				return template.HTML("+" + strconv.Itoa(n))
+			}
+			return template.HTML(strconv.Itoa(n))
+		},
+		"when": func(unix int64) string {
+			if unix <= 0 {
+				return ""
+			}
+			return time.Unix(unix, 0).Format("2006-01-02 15:04")
+		},
 		"dict2": func(members []lobby.Member, n, size int, me lobby.Player) map[string]any {
 			return map[string]any{"Members": members, "N": n, "Size": size, "Me": me}
 		},
@@ -122,6 +150,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /ws/browser", s.handleBrowserWS)
 	s.mux.HandleFunc("GET /ws/lobby/{id}", s.handleLobbyWS)
 	s.internalRoutes()
+	s.statsRoutes()
 }
 
 // page is the data every template receives.
