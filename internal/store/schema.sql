@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS players (
 
 CREATE TABLE IF NOT EXISTS matches (
     id            TEXT PRIMARY KEY,
+    lobby_id      TEXT NOT NULL DEFAULT '',
     lobby_name    TEXT NOT NULL,
     server_id     TEXT NOT NULL DEFAULT '',
     map           TEXT NOT NULL,

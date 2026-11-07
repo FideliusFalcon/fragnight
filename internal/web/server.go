@@ -113,6 +113,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /lobby/{id}", s.handleLobbyPage)
 	s.mux.HandleFunc("GET /ws/browser", s.handleBrowserWS)
 	s.mux.HandleFunc("GET /ws/lobby/{id}", s.handleLobbyWS)
+	s.internalRoutes()
 }
 
 // page is the data every template receives.

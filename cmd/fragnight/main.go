@@ -15,6 +15,8 @@ import (
 	"github.com/fideliusfalcon/fragnight/internal/auth"
 	"github.com/fideliusfalcon/fragnight/internal/config"
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
+	"github.com/fideliusfalcon/fragnight/internal/match"
+	"github.com/fideliusfalcon/fragnight/internal/pool"
 	"github.com/fideliusfalcon/fragnight/internal/store"
 	"github.com/fideliusfalcon/fragnight/internal/web"
 )
@@ -40,6 +42,13 @@ func main() {
 	defer st.Close()
 
 	lobbies := lobby.NewManager(time.Now, rand.New(rand.NewSource(time.Now().UnixNano())))
+	orch := match.New(match.Deps{
+		Lobbies: lobbies, Pool: pool.New(cfg.Servers), RCON: pool.NewRCON(), Store: st,
+		BaseURL: cfg.BaseURL, WebhookSecret: cfg.WebhookSecret,
+	})
+	// Starting a match talks to the CS2 server, so keep it off the ticker goroutine.
+	lobbies.OnMapChosen = func(id, mapName string) { go orch.Start(id, mapName) }
+	lobbies.OnEmpty = func(id string) { go orch.LobbyGone(id) }
 	handler := web.New(web.Deps{
 		Config:   cfg,
 		Store:    st,
