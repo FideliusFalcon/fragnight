@@ -138,7 +138,7 @@ func (m *Manager) summary(s *state) Summary {
 		info = s.settings.Maps[0]
 	}
 	sum := Summary{
-		ID: s.id, Name: s.name, HostName: host, Players: len(s.members), Capacity: Capacity,
+		ID: s.id, Name: s.name, HostName: host, Players: len(s.members), OnTeams: s.teamCount(Team1) + s.teamCount(Team2), Capacity: Capacity,
 		MapInfo: info, Status: s.status, Score: s.score,
 	}
 	if s.status == StatusVoting {

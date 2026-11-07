@@ -39,7 +39,7 @@
       const span = document.createElement('span');
       span.className = 'dot ' + l.status;
       dot.appendChild(span);
-      tr.append(dot, cell(l.name), cell(l.host_name), cell(l.players + ' / ' + l.capacity), cell(l.map_info), cell(statusText(l)));
+      tr.append(dot, cell(l.name), cell(l.host_name), cell(l.on_teams + ' / ' + l.capacity + (l.players > l.on_teams ? '  +' + (l.players - l.on_teams) : '')), cell(l.map_info), cell(statusText(l)));
       tr.addEventListener('click', () => { selected = l.id; joinBtn.disabled = false; render(); });
       tr.addEventListener('dblclick', () => { location.href = '/lobby/' + encodeURIComponent(l.id); });
       rows.appendChild(tr);

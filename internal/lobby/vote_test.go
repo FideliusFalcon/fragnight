@@ -238,3 +238,19 @@ func TestHostLeavesDuringVote_VoteContinues(t *testing.T) {
 		t.Fatalf("log %+v", *log)
 	}
 }
+
+func TestReady_ClearsAnOldErrorMessage(t *testing.T) {
+	m, _, s, _ := voteLobby(t)
+	m.SetStatus(s.ID, StatusWaiting, "Match aborted. Press Ready to play again.")
+	got, _ := m.Get(s.ID)
+	if got.Error == "" {
+		t.Fatal("test setup: the message should be set")
+	}
+	if err := m.Ready(s.ID, host()); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = m.Get(s.ID)
+	if got.Error != "" {
+		t.Fatalf("a stale message is still shown during the new vote: %q", got.Error)
+	}
+}

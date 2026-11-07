@@ -81,8 +81,9 @@ type Summary struct {
 	ID              string `json:"id"`
 	Name            string `json:"name"`
 	HostName        string `json:"host_name"`
-	Players         int    `json:"players"`
-	Capacity        int    `json:"capacity"`
+	Players         int    `json:"players"`  // everyone in the lobby
+	OnTeams         int    `json:"on_teams"` // players holding a team slot
+	Capacity        int    `json:"capacity"` // team slots in total
 	MapInfo         string `json:"map_info"`
 	Status          Status `json:"status"`
 	VoteRemainingMS int64  `json:"vote_remaining_ms"`

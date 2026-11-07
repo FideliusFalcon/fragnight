@@ -5,12 +5,12 @@
     {{template "tabs" .}}
     <div class="list">
       <table id="lobby-table">
-        <thead><tr><th style="width:20px"></th><th>Lobby</th><th>Host</th><th style="width:70px">Players</th><th style="width:120px">Map</th><th style="width:150px">Status</th></tr></thead>
+        <thead><tr><th style="width:20px"></th><th>Lobby</th><th>Host</th><th style="width:100px">Players</th><th style="width:120px">Map</th><th style="width:150px">Status</th></tr></thead>
         <tbody id="lobby-rows">
         {{range .Data}}
           <tr class="lrow{{if eq .Status "in_match"}} live{{end}}" data-id="{{.ID}}">
             <td><span class="dot {{.Status}}"></span></td><td>{{.Name}}</td><td>{{.HostName}}</td>
-            <td>{{.Players}} / {{.Capacity}}</td><td>{{.MapInfo}}</td>
+            <td>{{.OnTeams}} / {{.Capacity}}{{if gt .Players .OnTeams}} <span class="empty" title="in the lobby but not on a team">+{{sub .Players .OnTeams}}</span>{{end}}</td><td>{{.MapInfo}}</td>
             <td>{{statusLabel .Status}}{{if eq .Status "voting"}} {{seconds .VoteRemainingMS}}s{{end}}{{if eq .Status "in_match"}} {{index .Score 0}}–{{index .Score 1}}{{end}}</td>
           </tr>
         {{end}}

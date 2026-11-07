@@ -27,6 +27,7 @@ func (m *Manager) Ready(id, actor string) error {
 		return ErrBadTeams
 	}
 	s.status = StatusVoting
+	s.errMsg = "" // a message about the previous attempt must not outlive it
 	s.deadline = m.now().Add(VoteDuration)
 	m.publish(s)
 	return nil

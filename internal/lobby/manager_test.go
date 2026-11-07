@@ -456,3 +456,28 @@ func TestSetSettings_CustomMapsAreAdminOnly(t *testing.T) {
 		t.Fatalf("maps %v", got.Settings.Maps)
 	}
 }
+
+func TestSummary_CountsTeamSlotsSeparatelyFromEveryoneInTheLobby(t *testing.T) {
+	m := newMgr()
+	s := mustCreate(t, m, pl(1), true)
+	for i := 2; i <= 12; i++ {
+		m.Join(s.ID, pl(i))
+	}
+	for i := 1; i <= 5; i++ {
+		m.SetTeam(s.ID, pl(i).SteamID, Team1)
+	}
+	for i := 6; i <= 10; i++ {
+		m.SetTeam(s.ID, pl(i).SteamID, Team2)
+	}
+	list := m.ListPublic()
+	if len(list) != 1 {
+		t.Fatalf("%+v", list)
+	}
+	got := list[0]
+	if got.Players != 12 || got.OnTeams != 10 || got.Capacity != 10 {
+		t.Fatalf("players %d on teams %d capacity %d, want 12, 10, 10 (a full lobby must not read 12 / 10)", got.Players, got.OnTeams, got.Capacity)
+	}
+	if got.OnTeams > got.Capacity {
+		t.Fatal("more people on teams than slots")
+	}
+}
