@@ -252,3 +252,65 @@ func TestLobbyWS_TracksPresence(t *testing.T) {
 	w.c.Close(websocket.StatusNormalClosure, "")
 	eventually(false)
 }
+
+func TestLobbyWS_LeaveAlwaysAnswersLeft(t *testing.T) {
+	e := newEnv(t, true)
+	for i := 0; i < 40; i++ {
+		a := e.login(t, 10+2*i, "a")
+		b := e.login(t, 11+2*i, "b")
+		resp := a.post(t, "/lobbies", url.Values{"name": {"L"}})
+		path := resp.Header.Get("Location")
+		b.get(t, path)
+		id := strings.TrimPrefix(path, "/lobby/")
+		wb := b.dial(t, "/ws/lobby/"+id)
+		wb.next("state")
+		wb.send(map[string]any{"type": "leave"})
+		wb.next("left") // fatals if the client is never told it left
+		if _, in := e.lobbies.LobbyOf(b.id); in {
+			t.Fatalf("iteration %d: still a member after leaving", i)
+		}
+	}
+}
+
+func TestLobbyWS_KickedPlayerIsTold(t *testing.T) {
+	e := newEnv(t, true)
+	a := e.login(t, 1, "host")
+	b := e.login(t, 2, "guest")
+	resp := a.post(t, "/lobbies", url.Values{"name": {"L"}})
+	path := resp.Header.Get("Location")
+	b.get(t, path)
+	id := strings.TrimPrefix(path, "/lobby/")
+	wa := a.dial(t, "/ws/lobby/"+id)
+	wb := b.dial(t, "/ws/lobby/"+id)
+	wb.stateUntil(func(s lobby.Snapshot) bool { return len(s.Members) == 2 })
+	wa.send(map[string]any{"type": "kick", "steamid": b.id})
+	wb.next("left")
+}
+
+func TestLobbyWS_DeleteCommand(t *testing.T) {
+	e := newEnv(t, true)
+	a := e.login(t, 1, "host")
+	b := e.login(t, 2, "guest")
+	resp := a.post(t, "/lobbies", url.Values{"name": {"L"}, "public": {"on"}})
+	path := resp.Header.Get("Location")
+	b.get(t, path)
+	id := strings.TrimPrefix(path, "/lobby/")
+	wa := a.dial(t, "/ws/lobby/"+id)
+	wb := b.dial(t, "/ws/lobby/"+id)
+	wb.stateUntil(func(s lobby.Snapshot) bool { return len(s.Members) == 2 })
+
+	wb.send(map[string]any{"type": "delete"}) // a guest may not delete
+	wb.next("error")
+	if _, ok := e.lobbies.Get(id); !ok {
+		t.Fatal("guest deleted the lobby")
+	}
+	wa.send(map[string]any{"type": "delete"})
+	wa.next("closed")
+	wb.next("closed")
+	if _, ok := e.lobbies.Get(id); ok {
+		t.Fatal("lobby still exists")
+	}
+	if len(e.lobbies.ListPublic()) != 0 {
+		t.Fatal("deleted lobby still listed")
+	}
+}

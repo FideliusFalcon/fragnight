@@ -300,23 +300,82 @@ func (m *Manager) removeLocked(id, steamID string) (error, func()) {
 	delete(s.conns, steamID)
 	delete(s.offline, steamID)
 	if len(s.members) == 0 {
-		delete(m.lobbies, id)
-		for _, ch := range s.subs {
-			close(ch)
-		}
-		s.subs = nil
-		m.publish(nil)
-		cb := m.OnEmpty
-		if cb == nil {
-			return nil, nil
-		}
-		return nil, func() { cb(id) }
+		return nil, m.closeLocked(s)
 	}
 	if s.host == steamID {
 		s.host = s.members[0].SteamID
 	}
 	m.publish(s)
 	return nil, nil
+}
+
+// Delete removes a lobby and everyone in it. Host only.
+func (m *Manager) Delete(id, actor string) error {
+	m.mu.Lock()
+	s, ok := m.lobbies[id]
+	if !ok {
+		m.mu.Unlock()
+		return ErrNotFound
+	}
+	if s.host != actor {
+		m.mu.Unlock()
+		return ErrNotHost
+	}
+	after := m.closeLocked(s)
+	m.mu.Unlock()
+	if after != nil {
+		after()
+	}
+	return nil
+}
+
+// Close removes a lobby and everyone in it without a host check (admin action).
+func (m *Manager) Close(id string) error {
+	m.mu.Lock()
+	s, ok := m.lobbies[id]
+	if !ok {
+		m.mu.Unlock()
+		return ErrNotFound
+	}
+	after := m.closeLocked(s)
+	m.mu.Unlock()
+	if after != nil {
+		after()
+	}
+	return nil
+}
+
+// closeLocked deletes the lobby in one step: every member is released and the
+// subscribers see their channel close (no per-member updates in between). The
+// returned func, if any, must run after unlocking.
+func (m *Manager) closeLocked(s *state) func() {
+	for _, mem := range s.members {
+		delete(m.byPlayer, mem.SteamID)
+	}
+	s.members = nil
+	delete(m.lobbies, s.id)
+	for _, ch := range s.subs {
+		close(ch)
+	}
+	s.subs = nil
+	m.publish(nil)
+	if cb := m.OnEmpty; cb != nil {
+		id := s.id
+		return func() { cb(id) }
+	}
+	return nil
+}
+
+// ListAll returns every lobby, public or private (admin view).
+func (m *Manager) ListAll() []Summary {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []Summary{}
+	for _, s := range m.lobbies {
+		out = append(out, m.summary(s))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }
 
 func (m *Manager) SetSettings(id, actor string, ns settings.Match) error {

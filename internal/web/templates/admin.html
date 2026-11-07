@@ -15,6 +15,20 @@
       </table>
     </div>
     <div class="panel">
+      <h4><span>Lobbies</span><span class="empty">Includes private lobbies. Deleting removes everyone and aborts a running match.</span></h4>
+      <table>
+        <thead><tr><th>Lobby</th><th>Host</th><th>Players</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {{range .Data.Lobbies}}
+          <tr><td>{{.Name}}</td><td>{{.HostName}}</td><td>{{.Players}}</td><td>{{statusLabel .Status}}</td>
+            <td><form method="post" action="/admin/lobbies/{{.ID}}/delete"><button class="btn">Delete</button></form></td></tr>
+        {{else}}
+          <tr><td colspan="5" class="empty">No lobbies.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
       <h4><span>Recent matches</span><span class="empty">Deleting a match removes its stats; ratings are not reverted.</span></h4>
       <table>
         <thead><tr><th>Lobby</th><th>Map</th><th>Status</th><th>Score</th><th></th></tr></thead>

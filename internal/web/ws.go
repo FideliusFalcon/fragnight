@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/coder/websocket"
@@ -95,13 +96,6 @@ func (s *Server) handleLobbyWS(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			if m.Type == "leave" {
-				select {
-				case out <- map[string]any{"type": "left"}:
-				case <-ctx.Done():
-				}
-				return
-			}
 		}
 	}()
 
@@ -114,6 +108,13 @@ func (s *Server) handleLobbyWS(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				writeJSON(ctx, c, map[string]any{"type": "closed"})
 				c.Close(websocket.StatusNormalClosure, "lobby closed")
+				return
+			}
+			// The lobby state is the source of truth: if this player is no longer in
+			// it (they left, were kicked, or expired) tell the page and stop.
+			if !slices.ContainsFunc(snap.Members, func(mem lobby.Member) bool { return mem.SteamID == me.SteamID }) {
+				writeJSON(ctx, c, map[string]any{"type": "left"})
+				c.Close(websocket.StatusNormalClosure, "left the lobby")
 				return
 			}
 			if err := writeJSON(ctx, c, map[string]any{"type": "state", "lobby": snap, "you": me.SteamID}); err != nil {
@@ -149,6 +150,8 @@ func (s *Server) handleCommand(id string, me lobby.Player, m clientMsg) error {
 			return errors.New("matches are not available")
 		}
 		return s.Matches.Abort(id, me.SteamID)
+	case "delete":
+		return s.Lobbies.Delete(id, me.SteamID)
 	case "leave":
 		return s.Lobbies.Leave(id, me.SteamID)
 	}

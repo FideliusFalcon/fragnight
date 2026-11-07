@@ -180,3 +180,39 @@ func TestAdmin_PageResetAndDelete(t *testing.T) {
 		t.Fatal("match not deleted")
 	}
 }
+
+func TestAdmin_ListsAndDeletesAnyLobby(t *testing.T) {
+	e := newEnv(t, true)
+	host := e.login(t, 1, "host")
+	resp := host.post(t, "/lobbies", url.Values{"name": {"Secret Room"}}) // private
+	id := strings.TrimPrefix(resp.Header.Get("Location"), "/lobby/")
+
+	admin := e.login(t, 900, "root")
+	_, body := admin.get(t, "/admin")
+	if !strings.Contains(body, "Secret Room") || !strings.Contains(body, "/admin/lobbies/"+id+"/delete") {
+		t.Fatalf("admin page does not list the private lobby: %s", body)
+	}
+
+	// a non-admin cannot delete someone else's lobby through the admin route
+	other := e.login(t, 2, "other")
+	if r := other.post(t, "/admin/lobbies/"+id+"/delete", url.Values{}); r.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-admin: %d", r.StatusCode)
+	}
+	if _, ok := e.lobbies.Get(id); !ok {
+		t.Fatal("non-admin deleted a lobby")
+	}
+
+	if r := admin.post(t, "/admin/lobbies/"+id+"/delete", url.Values{}); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin delete: %d", r.StatusCode)
+	}
+	if _, ok := e.lobbies.Get(id); ok {
+		t.Fatal("lobby still exists")
+	}
+	if _, in := e.lobbies.LobbyOf(host.id); in {
+		t.Fatal("host still stuck in the deleted lobby")
+	}
+	// deleting an already-deleted lobby is not an error page
+	if r := admin.post(t, "/admin/lobbies/"+id+"/delete", url.Values{}); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("repeat delete: %d", r.StatusCode)
+	}
+}

@@ -9,8 +9,13 @@
   let deadline = 0;
   let ws = null;
   let closed = false;
+  let failedConnects = 0; // consecutive connections that never delivered a state
 
-  function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+  function send(msg) {
+    if (ws && ws.readyState === 1) { ws.send(JSON.stringify(msg)); return true; }
+    $('msg').textContent = 'Connection lost. Reconnecting…';
+    return false;
+  }
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -108,6 +113,14 @@
     renderMaps();
     renderCountdown();
 
+    const note = $('lock-note');
+    const locked = state.status !== 'waiting';
+    note.hidden = !locked;
+    note.textContent = state.status === 'voting'
+      ? 'Teams are locked during the vote. The host can stop the countdown to change them.'
+      : (locked ? 'Teams are locked once the match is being set up.' : '');
+    for (const b of document.querySelectorAll('button[data-team]')) b.title = locked ? note.textContent : '';
+
     const isHost = state.host === you;
     $('host-controls').hidden = !isHost;
     const ready = $('ready-btn');
@@ -192,6 +205,7 @@
   function connect() {
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/lobby/' + encodeURIComponent(lobbyID));
     ws.onmessage = (ev) => {
+      failedConnects = 0;
       const m = JSON.parse(ev.data);
       if (m.type === 'state') {
         state = m.lobby; you = m.you || you;
@@ -204,7 +218,14 @@
         closed = true; location.href = '/';
       }
     };
-    ws.onclose = () => { if (!closed) setTimeout(connect, 1500); };
+    ws.onclose = () => {
+      if (closed) return;
+      // A lobby that no longer exists (or no longer has us) refuses the socket, so
+      // after a few failures stop retrying and go back to the list.
+      if (++failedConnects >= 3) { closed = true; location.href = '/'; return; }
+      $('msg').textContent = 'Connection lost. Reconnecting…';
+      setTimeout(connect, 1500);
+    };
   }
 
   for (const b of document.querySelectorAll('button[data-team]')) {
@@ -214,6 +235,9 @@
   $('settings-btn').addEventListener('click', openSettings);
   $('abort-btn').addEventListener('click', () => { if (confirm('Abort the match? No stats or rating changes will be recorded.')) send({ type: 'abort' }); });
   $('leave').addEventListener('click', () => send({ type: 'leave' }));
+  $('delete-btn').addEventListener('click', () => {
+    if (confirm('Delete this lobby? Everyone in it is removed and a running match is aborted.')) send({ type: 'delete' });
+  });
   $('copy-link').addEventListener('click', () => {
     if (navigator.clipboard) navigator.clipboard.writeText(location.href);
     $('msg').textContent = 'Invite link copied: ' + location.href;

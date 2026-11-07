@@ -17,6 +17,7 @@ func (s *Server) statsRoutes() {
 	s.mux.HandleFunc("GET /admin", s.handleAdmin)
 	s.mux.HandleFunc("POST /admin/servers/{id}/reset", s.handleAdminReset)
 	s.mux.HandleFunc("POST /admin/matches/{id}/delete", s.handleAdminDelete)
+	s.mux.HandleFunc("POST /admin/lobbies/{id}/delete", s.handleAdminDeleteLobby)
 }
 
 func (s *Server) fail(w http.ResponseWriter, err error) {
@@ -133,7 +134,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	if s.Matches != nil {
 		servers = s.Matches.PoolState()
 	}
-	s.render(w, http.StatusOK, "admin", page{Title: "Admin", Me: &me, Data: map[string]any{"Servers": servers, "Matches": matches}})
+	s.render(w, http.StatusOK, "admin", page{Title: "Admin", Me: &me, Data: map[string]any{"Servers": servers, "Matches": matches, "Lobbies": s.Lobbies.ListAll()}})
 }
 
 func (s *Server) handleAdminReset(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +157,19 @@ func (s *Server) handleAdminDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Store.DeleteMatch(r.Context(), r.PathValue("id")); err != nil && !errors.Is(err, store.ErrNotFound) {
+		s.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+func (s *Server) handleAdminDeleteLobby(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireAdmin(w, r); !ok {
+		return
+	}
+	// Closing releases everyone; the match orchestrator hears about it through
+	// the lobby manager's OnEmpty hook and aborts any running match.
+	if err := s.Lobbies.Close(r.PathValue("id")); err != nil && !errors.Is(err, lobby.ErrNotFound) {
 		s.fail(w, err)
 		return
 	}

@@ -351,3 +351,82 @@ func TestSetMatchID_AppearsInSnapshot(t *testing.T) {
 	}
 	m.SetMatchID("nope", "x") // unknown lobby is harmless
 }
+
+func TestDelete_OnlyHostCanDelete_RemovesEveryone(t *testing.T) {
+	m := newMgr()
+	var gone []string
+	m.OnEmpty = func(id string) { gone = append(gone, id) }
+	s := mustCreate(t, m, pl(1), true)
+	m.Join(s.ID, pl(2))
+	m.Join(s.ID, pl(3))
+	ch, cancel := m.Subscribe(s.ID)
+	defer cancel()
+	<-ch
+
+	if err := m.Delete(s.ID, pl(2).SteamID); err != ErrNotHost {
+		t.Fatalf("non-host delete: %v", err)
+	}
+	if _, ok := m.Get(s.ID); !ok {
+		t.Fatal("non-host deleted the lobby")
+	}
+	if err := m.Delete(s.ID, pl(1).SteamID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m.Get(s.ID); ok {
+		t.Fatal("lobby still exists")
+	}
+	for i := 1; i <= 3; i++ {
+		if _, in := m.LobbyOf(pl(i).SteamID); in {
+			t.Fatalf("p%d is still stuck in the deleted lobby", i)
+		}
+	}
+	if len(m.ListPublic()) != 0 {
+		t.Fatal("deleted lobby still listed")
+	}
+	if len(gone) != 1 || gone[0] != s.ID {
+		t.Fatalf("OnEmpty calls %v", gone)
+	}
+	// subscribers are told by the channel closing
+	select {
+	case _, open := <-ch:
+		for open { // drain a possible queued snapshot, then expect close
+			_, open = <-ch
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subscriber was not released")
+	}
+	// everyone is free to make or join another lobby
+	if _, err := m.Create(pl(2), "again", true); err != nil {
+		t.Fatalf("player could not create a lobby after deletion: %v", err)
+	}
+}
+
+func TestDelete_WorksInAnyStatusAndForAdmins(t *testing.T) {
+	m := newMgr()
+	for _, st := range []Status{StatusVoting, StatusAwaitingServer, StatusInMatch, StatusFinished} {
+		s := mustCreate(t, m, pl(1), true)
+		m.SetStatus(s.ID, st, "")
+		if err := m.Delete(s.ID, pl(1).SteamID); err != nil {
+			t.Fatalf("%s: %v", st, err)
+		}
+		if _, ok := m.Get(s.ID); ok {
+			t.Fatalf("%s: lobby survived", st)
+		}
+	}
+	s := mustCreate(t, m, pl(5), false)
+	if err := m.Close(s.ID); err != nil { // the admin path: no host check
+		t.Fatal(err)
+	}
+	if err := m.Close(s.ID); err != ErrNotFound {
+		t.Fatalf("second close: %v", err)
+	}
+}
+
+func TestListAll_IncludesPrivate(t *testing.T) {
+	m := newMgr()
+	mustCreate(t, m, pl(1), true)
+	mustCreate(t, m, pl(2), false)
+	if got := m.ListAll(); len(got) != 2 {
+		t.Fatalf("%+v", got)
+	}
+}
