@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<title>Fragnight</title>
+<rect width="64" height="64" rx="12" fill="#3e4637"/>
+<g fill="none" stroke="#ffb000" stroke-width="6">
+<circle cx="32" cy="32" r="20"/>
+<path d="M32 3v14M32 47v14M3 32h14M47 32h14"/>
+</g>
+<path d="M23 22h18v17h-4.5v6h-9v-6H23z" fill="#c4cabd" stroke="#1f2319" stroke-width="3" stroke-linejoin="round"/>
+<path d="M27 25v6M32 25v6M37 25v6" stroke="#3e4637" stroke-width="2.6"/>
+</svg>

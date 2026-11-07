@@ -329,3 +329,25 @@ func TestLobbyPage_TellsThePageWhetherCustomMapsAreAllowed(t *testing.T) {
 		t.Fatal("admin should get data-admin=1")
 	}
 }
+
+func TestFavicon_IsLinkedAndServed(t *testing.T) {
+	e := newEnv(t, true)
+	resp, err := http.Get(e.ts.URL + "/login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(page), `rel="icon"`) || !strings.Contains(string(page), "/static/favicon.svg") {
+		t.Fatal("pages do not link the favicon")
+	}
+	resp, err = http.Get(e.ts.URL + "/static/favicon.svg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svg, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/svg+xml") || !strings.Contains(string(svg), "<svg") {
+		t.Fatalf("favicon: status %d type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+}

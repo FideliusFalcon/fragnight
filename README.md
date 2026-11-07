@@ -1,4 +1,5 @@
-# Fragnight
+<p align="center"><img src="assets/logo.svg" alt="Fragnight logo" width="112"></p>
+<h1 align="center">Fragnight</h1>
 
 A self-hosted lobby for Counter-Strike 2 LAN parties. Sign in with Steam, pick teams, vote on a map, and play on a server the app sets up for you. Stats and ELO carry over from night to night. The interface is styled like the old CS 1.6 menus.
 
