@@ -314,3 +314,31 @@ func TestLobbyWS_DeleteCommand(t *testing.T) {
 		t.Fatal("deleted lobby still listed")
 	}
 }
+
+func TestLobbyWS_RematchAndSwapCommands(t *testing.T) {
+	e := newEnv(t, true)
+	a := e.login(t, 1, "host")
+	b := e.login(t, 2, "guest")
+	resp := a.post(t, "/lobbies", url.Values{"name": {"L"}})
+	path := resp.Header.Get("Location")
+	b.get(t, path)
+	id := strings.TrimPrefix(path, "/lobby/")
+	wa := a.dial(t, "/ws/lobby/"+id)
+	wb := b.dial(t, "/ws/lobby/"+id)
+	wa.send(map[string]any{"type": "team", "team": 1})
+	wb.send(map[string]any{"type": "team", "team": 2})
+	wa.stateUntil(func(s lobby.Snapshot) bool { return teamOf(s, a.id) == 1 && teamOf(s, b.id) == 2 })
+
+	wa.send(map[string]any{"type": "swap"})
+	wa.stateUntil(func(s lobby.Snapshot) bool { return teamOf(s, a.id) == 2 && teamOf(s, b.id) == 1 })
+	wb.send(map[string]any{"type": "swap"}) // a guest may not
+	wb.next("error")
+
+	wa.send(map[string]any{"type": "rematch"}) // not finished yet
+	wa.next("error")
+	e.lobbies.SetStatus(id, lobby.StatusFinished, "")
+	wb.send(map[string]any{"type": "rematch"}) // a guest may not
+	wb.next("error")
+	wa.send(map[string]any{"type": "rematch"})
+	wa.stateUntil(func(s lobby.Snapshot) bool { return s.Status == lobby.StatusWaiting })
+}

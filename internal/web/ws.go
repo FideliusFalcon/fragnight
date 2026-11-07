@@ -150,6 +150,10 @@ func (s *Server) handleCommand(id string, me lobby.Player, m clientMsg) error {
 			return errors.New("matches are not available")
 		}
 		return s.Matches.Abort(id, me.SteamID)
+	case "rematch":
+		return s.Lobbies.Rematch(id, me.SteamID)
+	case "swap":
+		return s.Lobbies.SwapTeams(id, me.SteamID)
 	case "delete":
 		return s.Lobbies.Delete(id, me.SteamID)
 	case "leave":

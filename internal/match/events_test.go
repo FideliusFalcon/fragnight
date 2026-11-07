@@ -240,3 +240,38 @@ func TestPoolState_ListsServers(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestRematch_SameLobbyCanPlayASecondMatch(t *testing.T) {
+	r := newRig(t, 1)
+	lobbyID, firstID := r.runningMatch(t, 1)
+	if err := r.o.HandleEvent("s1", event(t, "map_result", firstID)); err != nil {
+		t.Fatal(err)
+	}
+	firstConnect := ""
+	if snap, _ := r.lobbies.Get(lobbyID); snap.Status != lobby.StatusFinished {
+		t.Fatalf("status %s", snap.Status)
+	} else {
+		firstConnect = snap.Connect
+	}
+	if err := r.lobbies.Rematch(lobbyID, steam(1)); err != nil {
+		t.Fatal(err)
+	}
+	r.o.Start(lobbyID, "de_nuke")
+
+	m, err := r.st.ActiveMatchOfLobby(context.Background(), lobbyID)
+	if err != nil || m.ID == firstID || m.Status != store.MatchRunning || m.Map != "de_nuke" {
+		t.Fatalf("second match: %+v %v", m, err)
+	}
+	snap, _ := r.lobbies.Get(lobbyID)
+	if snap.Status != lobby.StatusInMatch || snap.MatchID != m.ID || snap.Connect == "" || snap.Connect == firstConnect {
+		t.Fatalf("lobby after second start: %s match %q connect %q (first %q)", snap.Status, snap.MatchID, snap.Connect, firstConnect)
+	}
+	if snap.Score != [2]int{0, 0} {
+		t.Fatalf("old score still shown: %v", snap.Score)
+	}
+	// the first match's result is untouched
+	old, _ := r.st.GetMatch(context.Background(), firstID)
+	if old.Status != store.MatchFinished || old.Team1Score != 13 {
+		t.Fatalf("first match changed: %+v", old)
+	}
+}

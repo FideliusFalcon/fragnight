@@ -118,7 +118,9 @@
     note.hidden = !locked;
     note.textContent = state.status === 'voting'
       ? 'Teams are locked during the vote. The host can stop the countdown to change them.'
-      : (locked ? 'Teams are locked once the match is being set up.' : '');
+      : (state.status === 'finished'
+        ? 'The match is finished. The host can press Play again to reuse this lobby.'
+        : (locked ? 'Teams are locked once the match is being set up.' : ''));
     for (const b of document.querySelectorAll('button[data-team]')) b.title = locked ? note.textContent : '';
 
     const isHost = state.host === you;
@@ -128,6 +130,8 @@
     else { ready.textContent = 'Ready (start vote)'; ready.disabled = state.status !== 'waiting'; }
     $('settings-btn').disabled = state.status !== 'waiting';
     $('abort-btn').hidden = !(state.status === 'in_match' || state.status === 'awaiting_server');
+    $('swap-btn').hidden = state.status !== 'waiting';
+    $('rematch-btn').hidden = state.status !== 'finished';
 
     const box = $('connect-box');
     box.hidden = !state.connect;
@@ -233,6 +237,8 @@
   }
   $('ready-btn').addEventListener('click', () => send({ type: state && state.status === 'voting' ? 'stop' : 'ready' }));
   $('settings-btn').addEventListener('click', openSettings);
+  $('swap-btn').addEventListener('click', () => send({ type: 'swap' }));
+  $('rematch-btn').addEventListener('click', () => send({ type: 'rematch' }));
   $('abort-btn').addEventListener('click', () => { if (confirm('Abort the match? No stats or rating changes will be recorded.')) send({ type: 'abort' }); });
   $('leave').addEventListener('click', () => send({ type: 'leave' }));
   $('delete-btn').addEventListener('click', () => {
