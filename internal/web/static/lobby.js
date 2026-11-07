@@ -114,6 +114,7 @@
     if (state.status === 'voting') { ready.textContent = 'Stop countdown'; ready.disabled = false; }
     else { ready.textContent = 'Ready (start vote)'; ready.disabled = state.status !== 'waiting'; }
     $('settings-btn').disabled = state.status !== 'waiting';
+    $('abort-btn').hidden = !(state.status === 'in_match' || state.status === 'awaiting_server');
 
     const box = $('connect-box');
     box.hidden = !state.connect;
@@ -186,6 +187,7 @@
   }
   $('ready-btn').addEventListener('click', () => send({ type: state && state.status === 'voting' ? 'stop' : 'ready' }));
   $('settings-btn').addEventListener('click', openSettings);
+  $('abort-btn').addEventListener('click', () => { if (confirm('Abort the match? No stats or rating changes will be recorded.')) send({ type: 'abort' }); });
   $('leave').addEventListener('click', () => send({ type: 'leave' }));
   $('copy-link').addEventListener('click', () => {
     if (navigator.clipboard) navigator.clipboard.writeText(location.href);

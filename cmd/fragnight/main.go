@@ -44,12 +44,13 @@ func main() {
 	lobbies := lobby.NewManager(time.Now, rand.New(rand.NewSource(time.Now().UnixNano())))
 	orch := match.New(match.Deps{
 		Lobbies: lobbies, Pool: pool.New(cfg.Servers), RCON: pool.NewRCON(), Store: st,
-		BaseURL: cfg.BaseURL, WebhookSecret: cfg.WebhookSecret,
+		BaseURL: cfg.BaseURL, WebhookSecret: cfg.WebhookSecret, Admins: cfg.AdminSteamIDs,
 	})
 	// Starting a match talks to the CS2 server, so keep it off the ticker goroutine.
 	lobbies.OnMapChosen = func(id, mapName string) { go orch.Start(id, mapName) }
 	lobbies.OnEmpty = func(id string) { go orch.LobbyGone(id) }
 	handler := web.New(web.Deps{
+		Matches:  orch,
 		Config:   cfg,
 		Store:    st,
 		Sessions: auth.NewSessions([]byte(cfg.SessionSecret), 30*24*time.Hour),

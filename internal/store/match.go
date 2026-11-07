@@ -119,3 +119,49 @@ func (s *Store) ActiveMatchOfLobby(ctx context.Context, lobbyID string) (Match, 
 	return scanMatch(s.db.QueryRowContext(ctx, `SELECT `+matchCols+` FROM matches
 		WHERE lobby_id = ? AND status IN (?, ?) ORDER BY started_at DESC LIMIT 1`, lobbyID, MatchPending, MatchRunning))
 }
+
+// ErrNotRunning is returned by FinishMatch when the match is not currently running
+// (already finished, aborted, or never started).
+var ErrNotRunning = errors.New("match is not running")
+
+type PlayerResult struct {
+	SteamID                                           string
+	Kills, Deaths, Assists, Damage, Headshots, Rounds int
+	EloAfter                                          int
+}
+
+type FinishInput struct {
+	MatchID                        string
+	Team1Score, Team2Score, Winner int
+	EndedAt                        int64
+	Players                        []PlayerResult
+}
+
+// FinishMatch records the result of a running match in one transaction: scores,
+// per-player stats and new ratings. It succeeds at most once per match.
+func (s *Store) FinishMatch(ctx context.Context, in FinishInput) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE matches SET status = ?, team1_score = ?, team2_score = ?, winner = ?, ended_at = ?
+		WHERE id = ? AND status = ?`, MatchFinished, in.Team1Score, in.Team2Score, in.Winner, in.EndedAt, in.MatchID, MatchRunning)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotRunning
+	}
+	for _, p := range in.Players {
+		if _, err := tx.ExecContext(ctx, `UPDATE match_players SET kills = ?, deaths = ?, assists = ?, damage = ?,
+			headshots = ?, rounds = ?, elo_after = ? WHERE match_id = ? AND steamid = ?`,
+			p.Kills, p.Deaths, p.Assists, p.Damage, p.Headshots, p.Rounds, p.EloAfter, in.MatchID, p.SteamID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE players SET elo = ? WHERE steamid = ?`, p.EloAfter, p.SteamID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}

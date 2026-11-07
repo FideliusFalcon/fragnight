@@ -10,16 +10,40 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/fideliusfalcon/fragnight/internal/auth"
 	"github.com/fideliusfalcon/fragnight/internal/config"
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
+	"github.com/fideliusfalcon/fragnight/internal/matchzy"
 	"github.com/fideliusfalcon/fragnight/internal/store"
 )
 
+type fakeMatches struct {
+	mu     sync.Mutex
+	events []string
+	aborts []string
+	err    error
+}
+
+func (f *fakeMatches) HandleEvent(serverID string, ev matchzy.Event) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, serverID+":"+ev.Name+":"+ev.MatchID)
+	return f.err
+}
+
+func (f *fakeMatches) Abort(lobbyID, actor string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.aborts = append(f.aborts, lobbyID+":"+actor)
+	return f.err
+}
+
 type env struct {
+	matches *fakeMatches
 	srv     *Server
 	ts      *httptest.Server
 	lobbies *lobby.Manager
@@ -34,8 +58,10 @@ func newEnv(t *testing.T, devLogin bool) *env {
 	}
 	t.Cleanup(func() { st.Close() })
 	lm := lobby.NewManager(time.Now, rand.New(rand.NewSource(1)))
+	fm := &fakeMatches{}
 	srv := New(Deps{
-		Config:   config.Config{BaseURL: "http://lan.local", DevLogin: devLogin},
+		Matches:  fm,
+		Config:   config.Config{BaseURL: "http://lan.local", DevLogin: devLogin, WebhookSecret: "hook-secret"},
 		Store:    st,
 		Sessions: auth.NewSessions([]byte("test-secret"), time.Hour),
 		Lobbies:  lm,
@@ -43,7 +69,7 @@ func newEnv(t *testing.T, devLogin bool) *env {
 	})
 	ts := httptest.NewServer(srv)
 	t.Cleanup(ts.Close)
-	return &env{srv: srv, ts: ts, lobbies: lm, store: st}
+	return &env{srv: srv, ts: ts, lobbies: lm, store: st, matches: fm}
 }
 
 func sid(n int) string { return fmt.Sprintf("7656119800000%04d", n) }

@@ -51,3 +51,58 @@ func TestConfigEndpoint_RejectsWrongToken(t *testing.T) {
 	}
 	_ = context.Background
 }
+
+func postEvent(t *testing.T, e *env, serverID, secret, body string) int {
+	t.Helper()
+	req, _ := http.NewRequest("POST", e.ts.URL+"/internal/events/"+serverID, strings.NewReader(body))
+	if secret != "" {
+		req.Header.Set("X-Webhook-Secret", secret)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestWebhook_WrongSecretForbidden(t *testing.T) {
+	e := newEnv(t, false)
+	body := `{"event":"map_result","matchid":"m1"}`
+	for _, secret := range []string{"", "wrong", "hook-secre"} {
+		if code := postEvent(t, e, "s1", secret, body); code != http.StatusForbidden {
+			t.Errorf("secret %q: status %d", secret, code)
+		}
+	}
+	if len(e.matches.events) != 0 {
+		t.Fatalf("event delivered with bad secret: %v", e.matches.events)
+	}
+}
+
+func TestWebhook_NoConfiguredSecretRejectsEverything(t *testing.T) {
+	e := newEnv(t, false)
+	e.srv.Config.WebhookSecret = ""
+	if code := postEvent(t, e, "s1", "", `{"event":"going_live"}`); code != http.StatusForbidden {
+		t.Fatalf("status %d", code)
+	}
+}
+
+func TestWebhook_DeliversParsedEvent(t *testing.T) {
+	e := newEnv(t, false)
+	if code := postEvent(t, e, "cs2-1", "hook-secret", `{"event":"round_end","matchid":"m1"}`); code != 200 {
+		t.Fatalf("status %d", code)
+	}
+	if len(e.matches.events) != 1 || e.matches.events[0] != "cs2-1:round_end:m1" {
+		t.Fatalf("events %v", e.matches.events)
+	}
+}
+
+func TestWebhook_GarbageBodyIsBadRequest(t *testing.T) {
+	e := newEnv(t, false)
+	if code := postEvent(t, e, "s1", "hook-secret", `not json`); code != http.StatusBadRequest {
+		t.Fatalf("status %d", code)
+	}
+	if len(e.matches.events) != 0 {
+		t.Fatal("garbage delivered")
+	}
+}

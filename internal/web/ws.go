@@ -140,6 +140,11 @@ func (s *Server) handleCommand(id string, me lobby.Player, m clientMsg) error {
 			return errors.New("missing settings")
 		}
 		return s.Lobbies.SetSettings(id, me.SteamID, *m.Settings)
+	case "abort":
+		if s.Matches == nil {
+			return errors.New("matches are not available")
+		}
+		return s.Matches.Abort(id, me.SteamID)
 	case "leave":
 		return s.Lobbies.Leave(id, me.SteamID)
 	}

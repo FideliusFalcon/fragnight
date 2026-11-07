@@ -27,7 +27,9 @@ type Deps struct {
 	Store         *store.Store
 	BaseURL       string
 	WebhookSecret string
-	Now           func() time.Time
+	// Admins are SteamIDs allowed to abort any match.
+	Admins []string
+	Now    func() time.Time
 }
 
 type Orchestrator struct {
@@ -155,10 +157,5 @@ func (o *Orchestrator) LobbyGone(lobbyID string) {
 		}
 		return
 	}
-	if m.Status == store.MatchPending {
-		o.Store.SetMatchStatus(ctx, m.ID, store.MatchAborted, o.Now().Unix())
-		if srv, ok := o.Pool.ServerOf(lobbyID); ok {
-			o.ReleaseServer(srv.ID)
-		}
-	}
+	o.endEarly(m, "")
 }

@@ -210,3 +210,20 @@ func TestLobbyWS_NonMemberRefused(t *testing.T) {
 		t.Fatalf("err %v resp %v", err, r)
 	}
 }
+
+func TestLobbyWS_AbortCommand(t *testing.T) {
+	e := newEnv(t, true)
+	host := e.login(t, 1, "host")
+	resp := host.post(t, "/lobbies", url.Values{"name": {"L"}})
+	id := strings.TrimPrefix(resp.Header.Get("Location"), "/lobby/")
+	w := host.dial(t, "/ws/lobby/"+id)
+	w.next("state")
+	w.send(map[string]any{"type": "abort"})
+	w.send(map[string]any{"type": "team", "team": 1}) // round trip: the abort was handled first
+	w.stateUntil(func(s lobby.Snapshot) bool { return teamOf(s, host.id) == lobby.Team1 })
+	e.matches.mu.Lock()
+	defer e.matches.mu.Unlock()
+	if len(e.matches.aborts) != 1 || e.matches.aborts[0] != id+":"+host.id {
+		t.Fatalf("aborts %v", e.matches.aborts)
+	}
+}

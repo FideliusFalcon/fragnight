@@ -17,6 +17,7 @@ import (
 	"github.com/fideliusfalcon/fragnight/internal/auth"
 	"github.com/fideliusfalcon/fragnight/internal/config"
 	"github.com/fideliusfalcon/fragnight/internal/lobby"
+	"github.com/fideliusfalcon/fragnight/internal/matchzy"
 	"github.com/fideliusfalcon/fragnight/internal/store"
 )
 
@@ -26,8 +27,15 @@ var templateFS embed.FS
 //go:embed static
 var staticFS embed.FS
 
+// Matches is what the web layer needs from the match orchestrator.
+type Matches interface {
+	HandleEvent(serverID string, ev matchzy.Event) error
+	Abort(lobbyID, actor string) error
+}
+
 // Deps are the collaborators the web layer needs.
 type Deps struct {
+	Matches  Matches
 	Config   config.Config
 	Store    *store.Store
 	Sessions *auth.Sessions
