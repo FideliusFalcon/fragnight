@@ -79,7 +79,7 @@ func (o *Orchestrator) finish(ctx context.Context, m store.Match, ev matchzy.Eve
 		s := stats[r.SteamID]
 		in.Players = append(in.Players, store.PlayerResult{
 			SteamID: r.SteamID, Kills: s.Kills, Deaths: s.Deaths, Assists: s.Assists, Damage: s.Damage,
-			Headshots: s.Headshots, Rounds: s.Rounds, EloAfter: r.EloBefore + delta,
+			Headshots: s.Headshots, Rounds: s.Rounds, EloDelta: delta,
 		})
 	}
 	if err := o.Store.FinishMatch(ctx, in); err != nil {

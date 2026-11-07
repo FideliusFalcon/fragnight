@@ -28,6 +28,8 @@ type state struct {
 	matchID  string
 	score    [2]int
 	subs     map[int]chan Snapshot
+	conns    map[string]int       // open lobby pages per member
+	offline  map[string]time.Time // when each offline member went offline
 }
 
 // Manager owns all lobbies. All methods are safe for concurrent use.
@@ -189,6 +191,7 @@ func (m *Manager) Create(host Player, name string, public bool) (Snapshot, error
 		id: newID(), name: name, host: host.SteamID, public: public,
 		status: StatusWaiting, settings: settings.Defaults(),
 		members: []Member{{Player: host}}, subs: map[int]chan Snapshot{},
+		conns: map[string]int{}, offline: map[string]time.Time{host.SteamID: m.now()},
 	}
 	m.lobbies[s.id] = s
 	m.byPlayer[host.SteamID] = s.id
@@ -213,6 +216,7 @@ func (m *Manager) Join(id string, p Player) (Snapshot, error) {
 		return Snapshot{}, ErrBadState
 	}
 	s.members = append(s.members, Member{Player: p})
+	s.offline[p.SteamID] = m.now() // not connected until their page opens its WebSocket
 	m.byPlayer[p.SteamID] = id
 	m.publish(s)
 	return m.snapshot(s), nil
@@ -293,6 +297,8 @@ func (m *Manager) removeLocked(id, steamID string) (error, func()) {
 	}
 	s.members = slices.Delete(s.members, i, i+1)
 	delete(m.byPlayer, steamID)
+	delete(s.conns, steamID)
+	delete(s.offline, steamID)
 	if len(s.members) == 0 {
 		delete(m.lobbies, id)
 		for _, ch := range s.subs {
@@ -347,6 +353,14 @@ func (m *Manager) SetStatus(id string, st Status, errMsg string) {
 		s.errMsg = errMsg
 		if st != StatusVoting {
 			s.deadline = time.Time{}
+		}
+		if st == StatusFinished {
+			// players left the lobby page to play; give them a fresh grace period
+			for _, mem := range s.members {
+				if s.conns[mem.SteamID] == 0 {
+					s.offline[mem.SteamID] = m.now()
+				}
+			}
 		}
 		m.publish(s)
 	}

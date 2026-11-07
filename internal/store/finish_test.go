@@ -10,8 +10,8 @@ func finishInput() FinishInput {
 	return FinishInput{
 		MatchID: "m1", Team1Score: 13, Team2Score: 7, Winner: 1, EndedAt: 500,
 		Players: []PlayerResult{
-			{SteamID: "1", Kills: 20, Deaths: 12, Assists: 4, Damage: 2300, Headshots: 9, Rounds: 24, EloAfter: 1136},
-			{SteamID: "2", Kills: 5, Deaths: 20, Assists: 1, Damage: 700, Headshots: 1, Rounds: 24, EloAfter: 984},
+			{SteamID: "1", Kills: 20, Deaths: 12, Assists: 4, Damage: 2300, Headshots: 9, Rounds: 24, EloDelta: 16},
+			{SteamID: "2", Kills: 5, Deaths: 20, Assists: 1, Damage: 700, Headshots: 1, Rounds: 24, EloDelta: -16},
 		},
 	}
 }
@@ -50,7 +50,7 @@ func TestFinishMatch_OnlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := finishInput()
-	second.Players[0].EloAfter = 9999
+	second.Players[0].EloDelta = 9999
 	if err := s.FinishMatch(ctx, second); !errors.Is(err, ErrNotRunning) {
 		t.Fatalf("want ErrNotRunning, got %v", err)
 	}
@@ -75,5 +75,28 @@ func TestFinishMatch_RefusesAbortedAndPending(t *testing.T) {
 	}
 	if p, _ := s.GetPlayer(ctx, "1"); p.Elo != 1120 {
 		t.Fatalf("aborted match changed elo: %d", p.Elo)
+	}
+}
+
+func TestFinishMatch_AppliesDeltaToCurrentRating(t *testing.T) {
+	s := open(t)
+	seed(t, s) // player 1 starts at 1120
+	ctx := context.Background()
+	s.CreateMatch(ctx, newMatch(), []RosterEntry{{"1", 1}, {"2", 2}}) // snapshots 1120
+	// meanwhile another match finished and moved the player's rating
+	if _, err := s.db.Exec(`UPDATE players SET elo = 1500 WHERE steamid = '1'`); err != nil {
+		t.Fatal(err)
+	}
+	s.SetMatchRunning(ctx, "m1", "cs2-1")
+	if err := s.FinishMatch(ctx, finishInput()); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := s.GetPlayer(ctx, "1")
+	if p.Elo != 1516 {
+		t.Fatalf("rating %d, want 1516 (current 1500 + 16), the other match's change was overwritten", p.Elo)
+	}
+	roster, _ := s.Roster(ctx, "m1")
+	if roster[0].EloAfter != 1136 { // per-match display: snapshot + this match's delta
+		t.Fatalf("elo_after %d", roster[0].EloAfter)
 	}
 }

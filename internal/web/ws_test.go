@@ -227,3 +227,28 @@ func TestLobbyWS_AbortCommand(t *testing.T) {
 		t.Fatalf("aborts %v", e.matches.aborts)
 	}
 }
+
+func TestLobbyWS_TracksPresence(t *testing.T) {
+	e := newEnv(t, true)
+	host := e.login(t, 1, "host")
+	resp := host.post(t, "/lobbies", url.Values{"name": {"L"}})
+	id := strings.TrimPrefix(resp.Header.Get("Location"), "/lobby/")
+	eventually := func(want bool) {
+		t.Helper()
+		for i := 0; i < 100; i++ {
+			if e.lobbies.IsOnline(id, host.id) == want {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatalf("IsOnline never became %v", want)
+	}
+	if e.lobbies.IsOnline(id, host.id) {
+		t.Fatal("online before any page opened")
+	}
+	w := host.dial(t, "/ws/lobby/"+id)
+	w.next("state")
+	eventually(true)
+	w.c.Close(websocket.StatusNormalClosure, "")
+	eventually(false)
+}

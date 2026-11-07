@@ -7,7 +7,7 @@ import (
 )
 
 // finished plays a complete match between team 1 = {a} and team 2 = {b}.
-func finished(t *testing.T, s *Store, id string, a, b string, winner int, endedAt int64, eloA, eloB int) {
+func finished(t *testing.T, s *Store, id string, a, b string, winner int, endedAt int64, dA, dB int) {
 	t.Helper()
 	ctx := context.Background()
 	m := newMatch()
@@ -18,8 +18,8 @@ func finished(t *testing.T, s *Store, id string, a, b string, winner int, endedA
 	s.SetMatchRunning(ctx, id, "cs2-1")
 	err := s.FinishMatch(ctx, FinishInput{MatchID: id, Team1Score: 13, Team2Score: 5, Winner: winner, EndedAt: endedAt,
 		Players: []PlayerResult{
-			{SteamID: a, Kills: 20, Deaths: 10, Assists: 2, Damage: 2400, Headshots: 10, Rounds: 20, EloAfter: eloA},
-			{SteamID: b, Kills: 5, Deaths: 20, Assists: 1, Damage: 600, Headshots: 1, Rounds: 20, EloAfter: eloB},
+			{SteamID: a, Kills: 20, Deaths: 10, Assists: 2, Damage: 2400, Headshots: 10, Rounds: 20, EloDelta: dA},
+			{SteamID: b, Kills: 5, Deaths: 20, Assists: 1, Damage: 600, Headshots: 1, Rounds: 20, EloDelta: dB},
 		}})
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestLeaderboard_OrderedByElo_CompletedOnly(t *testing.T) {
 	s := open(t)
 	seedThree(t, s)
 	ctx := context.Background()
-	finished(t, s, "m1", "1", "2", 1, 100, 1016, 984)
+	finished(t, s, "m1", "1", "2", 1, 100, 16, -16)
 	// carol only has an aborted match: she must not appear
 	m := newMatch()
 	m.ID, m.LobbyID = "m2", "lobby-m2"
@@ -74,8 +74,8 @@ func TestPlayerSummary_RecentMatchesNewestFirst(t *testing.T) {
 	s := open(t)
 	seedThree(t, s)
 	ctx := context.Background()
-	finished(t, s, "m1", "1", "2", 1, 100, 1016, 984)
-	finished(t, s, "m2", "2", "1", 1, 200, 1000, 1000)
+	finished(t, s, "m1", "1", "2", 1, 100, 16, -16)
+	finished(t, s, "m2", "2", "1", 1, 200, 0, 0)
 	sum, err := s.PlayerSummary(ctx, "1")
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestMatchesOf_OnlyOwnAndCompleted(t *testing.T) {
 	s := open(t)
 	seedThree(t, s)
 	ctx := context.Background()
-	finished(t, s, "m1", "1", "2", 1, 100, 1016, 984)
+	finished(t, s, "m1", "1", "2", 1, 100, 16, -16)
 	m := newMatch()
 	m.ID, m.LobbyID = "m2", "lobby-m2"
 	s.CreateMatch(ctx, m, []RosterEntry{{"3", 1}, {"2", 2}})
@@ -115,7 +115,7 @@ func TestMatchesOf_OnlyOwnAndCompleted(t *testing.T) {
 func TestMatchDetail_PlayersWithNamesAndDeltas(t *testing.T) {
 	s := open(t)
 	seedThree(t, s)
-	finished(t, s, "m1", "1", "2", 1, 100, 1016, 984)
+	finished(t, s, "m1", "1", "2", 1, 100, 16, -16)
 	d, err := s.MatchDetail(context.Background(), "m1")
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestDeleteMatch_RemovesStats(t *testing.T) {
 	s := open(t)
 	seedThree(t, s)
 	ctx := context.Background()
-	finished(t, s, "m1", "1", "2", 1, 100, 1016, 984)
+	finished(t, s, "m1", "1", "2", 1, 100, 16, -16)
 	if err := s.DeleteMatch(ctx, "m1"); err != nil {
 		t.Fatal(err)
 	}
@@ -148,8 +148,8 @@ func TestDeleteMatch_RemovesStats(t *testing.T) {
 func TestRecentMatches(t *testing.T) {
 	s := open(t)
 	seedThree(t, s)
-	finished(t, s, "m1", "1", "2", 1, 100, 1016, 984)
-	finished(t, s, "m2", "1", "2", 1, 200, 1030, 970)
+	finished(t, s, "m1", "1", "2", 1, 100, 16, -16)
+	finished(t, s, "m2", "1", "2", 1, 200, 30, -30)
 	rows, err := s.RecentMatches(context.Background(), 1)
 	if err != nil || len(rows) != 1 || rows[0].ID != "m2" {
 		t.Fatalf("%+v %v", rows, err)

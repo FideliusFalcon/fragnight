@@ -24,8 +24,8 @@ func playMatch(t *testing.T, e *env, id string, a, b int, nameA, nameB string, w
 	e.store.SetMatchRunning(ctx, id, "cs2-1")
 	err = e.store.FinishMatch(ctx, store.FinishInput{MatchID: id, Team1Score: 13, Team2Score: 7, Winner: winner, EndedAt: 100,
 		Players: []store.PlayerResult{
-			{SteamID: sid(a), Kills: 20, Deaths: 10, Damage: 2400, Headshots: 10, Rounds: 20, EloAfter: eloA},
-			{SteamID: sid(b), Kills: 5, Deaths: 20, Damage: 600, Headshots: 1, Rounds: 20, EloAfter: eloB},
+			{SteamID: sid(a), Kills: 20, Deaths: 10, Damage: 2400, Headshots: 10, Rounds: 20, EloDelta: eloA - 1000},
+			{SteamID: sid(b), Kills: 5, Deaths: 20, Damage: 600, Headshots: 1, Rounds: 20, EloDelta: eloB - 1000},
 		}})
 	if err != nil {
 		t.Fatal(err)

@@ -72,6 +72,10 @@ func (s *Server) handleLobbyWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	// An open lobby page keeps the member from being expired as a ghost.
+	s.Lobbies.Connected(id, me.SteamID)
+	defer s.Lobbies.Disconnected(id, me.SteamID)
+
 	out := make(chan any, 8) // errors and notices from the reader
 	snaps, unsub := s.Lobbies.Subscribe(id)
 	defer unsub()

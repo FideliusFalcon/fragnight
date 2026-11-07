@@ -12,14 +12,17 @@ import (
 const base = "http://lan.local:8080"
 const sid = "76561198000000000"
 
+const state = "abc123"
+
 func validQuery() url.Values {
 	return url.Values{
+		"state":             {state},
 		"openid.mode":       {"id_res"},
 		"openid.claimed_id": {"https://steamcommunity.com/openid/id/" + sid},
 		"openid.identity":   {"https://steamcommunity.com/openid/id/" + sid},
-		"openid.return_to":  {base + "/auth/steam/callback"},
+		"openid.return_to":  {base + "/auth/steam/callback?state=" + state},
 		"openid.sig":        {"abc"},
-		"openid.signed":     {"signed"},
+		"openid.signed":     {"signed,op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle"},
 	}
 }
 
@@ -36,13 +39,13 @@ func steamServer(t *testing.T, reply string, calls *int) *httptest.Server {
 }
 
 func TestLoginURL(t *testing.T) {
-	u := LoginURL(base)
+	u := LoginURL(base, state)
 	if !strings.HasPrefix(u, "https://steamcommunity.com/openid/login?") {
 		t.Fatal(u)
 	}
 	q, _ := url.Parse(u)
 	v := q.Query()
-	if v.Get("openid.return_to") != base+"/auth/steam/callback" || v.Get("openid.realm") != base {
+	if v.Get("openid.return_to") != base+"/auth/steam/callback?state="+state || v.Get("openid.realm") != base {
 		t.Fatalf("params: %v", v)
 	}
 }
@@ -92,7 +95,7 @@ func TestVerify_RejectsWrongReturnTo(t *testing.T) {
 	srv := steamServer(t, "is_valid:true\n", &calls)
 	defer srv.Close()
 	q := validQuery()
-	q.Set("openid.return_to", "http://evil.example/auth/steam/callback")
+	q.Set("openid.return_to", "http://evil.example/auth/steam/callback?state="+state)
 	if _, err := Verify(context.Background(), srv.Client(), srv.URL, base, q); err == nil {
 		t.Fatal("want error")
 	}
@@ -109,5 +112,73 @@ func TestVerify_RejectsWrongMode(t *testing.T) {
 	q.Set("openid.mode", "cancel")
 	if _, err := Verify(context.Background(), srv.Client(), srv.URL, base, q); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+func TestVerify_RejectsStateMismatchInReturnTo(t *testing.T) {
+	calls := 0
+	srv := steamServer(t, "is_valid:true\n", &calls)
+	defer srv.Close()
+	q := validQuery()
+	q.Set("state", "other") // callback state differs from the one Steam signed into return_to
+	if _, err := Verify(context.Background(), srv.Client(), srv.URL, base, q); err == nil {
+		t.Fatal("state mismatch accepted")
+	}
+	q = validQuery()
+	q.Del("state")
+	if _, err := Verify(context.Background(), srv.Client(), srv.URL, base, q); err == nil {
+		t.Fatal("missing state accepted")
+	}
+	if calls != 0 {
+		t.Fatal("network called")
+	}
+}
+
+func TestVerify_RejectsDuplicateOpenIDKeys(t *testing.T) {
+	calls := 0
+	srv := steamServer(t, "is_valid:true\n", &calls)
+	defer srv.Close()
+	for _, key := range []string{"openid.claimed_id", "openid.return_to", "openid.signed", "openid.identity"} {
+		q := validQuery()
+		q.Add(key, "https://steamcommunity.com/openid/id/76561198999999999")
+		if _, err := Verify(context.Background(), srv.Client(), srv.URL, base, q); err == nil {
+			t.Errorf("duplicate %s accepted", key)
+		}
+	}
+	if calls != 0 {
+		t.Fatal("network called")
+	}
+}
+
+func TestVerify_RejectsIdentityMismatch(t *testing.T) {
+	calls := 0
+	srv := steamServer(t, "is_valid:true\n", &calls)
+	defer srv.Close()
+	q := validQuery()
+	q.Set("openid.identity", "https://steamcommunity.com/openid/id/76561198999999999")
+	if _, err := Verify(context.Background(), srv.Client(), srv.URL, base, q); err == nil {
+		t.Fatal("identity != claimed_id accepted")
+	}
+}
+
+func TestVerify_RequiresSignedFields(t *testing.T) {
+	calls := 0
+	srv := steamServer(t, "is_valid:true\n", &calls)
+	defer srv.Close()
+	for _, signed := range []string{
+		"signed,op_endpoint,identity,return_to,response_nonce",
+		"signed,op_endpoint,claimed_id,return_to,response_nonce",
+		"signed,op_endpoint,claimed_id,identity,response_nonce",
+		"signed,op_endpoint,claimed_id,identity,return_to",
+		"",
+	} {
+		q := validQuery()
+		q.Set("openid.signed", signed)
+		if _, err := Verify(context.Background(), srv.Client(), srv.URL, base, q); err == nil {
+			t.Errorf("signed list %q accepted", signed)
+		}
+	}
+	if calls != 0 {
+		t.Fatal("network called")
 	}
 }

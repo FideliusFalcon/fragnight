@@ -3,7 +3,10 @@ package web
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"html/template"
 	"io/fs"
@@ -227,14 +230,32 @@ func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request, p store.Pla
 	http.Redirect(w, r, dest, http.StatusSeeOther)
 }
 
+const stateCookie = "fragnight_oidstate"
+
 func (s *Server) handleSteamStart(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, auth.LoginURL(s.Config.BaseURL), http.StatusSeeOther)
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		http.Error(w, "error", http.StatusInternalServerError)
+		return
+	}
+	state := hex.EncodeToString(b)
+	http.SetCookie(w, &http.Cookie{Name: stateCookie, Value: state, Path: "/", MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	http.Redirect(w, r, auth.LoginURL(s.Config.BaseURL, state), http.StatusSeeOther)
 }
 
 func (s *Server) handleSteamCallback(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	id, err := auth.Verify(ctx, s.HTTP, s.SteamEndpoint, s.Config.BaseURL, r.URL.Query())
+	// The callback must belong to a login this browser started.
+	c, cerr := r.Cookie(stateCookie)
+	http.SetCookie(w, &http.Cookie{Name: stateCookie, Value: "", Path: "/", MaxAge: -1})
+	var id string
+	var err error
+	if cerr != nil || c.Value == "" || subtle.ConstantTimeCompare([]byte(c.Value), []byte(r.URL.Query().Get("state"))) != 1 {
+		err = errors.New("login state does not match this browser")
+	} else {
+		id, err = auth.Verify(ctx, s.HTTP, s.SteamEndpoint, s.Config.BaseURL, r.URL.Query())
+	}
 	if err != nil {
 		log.Printf("steam login failed: %v", err)
 		http.Redirect(w, r, "/login?error="+url.QueryEscape("Steam login failed. The lobby server needs internet access to steamcommunity.com."), http.StatusSeeOther)

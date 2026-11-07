@@ -22,13 +22,22 @@ type fakeRCON struct {
 	mu      sync.Mutex
 	calls   []call
 	failFor map[string]bool
+	// onExec, if set, runs after a command is recorded (without the lock held),
+	// letting a test act "while the command is in flight".
+	onExec func(call)
 }
 
 func (f *fakeRCON) Exec(_ context.Context, s pool.Server, cmd string) (string, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls = append(f.calls, call{s.ID, cmd})
-	if f.failFor[s.ID] {
+	c := call{s.ID, cmd}
+	f.calls = append(f.calls, c)
+	fail := f.failFor[s.ID]
+	hook := f.onExec
+	f.mu.Unlock()
+	if hook != nil {
+		hook(c)
+	}
+	if fail {
 		return "", errors.New("connection refused")
 	}
 	return "ok", nil
@@ -214,4 +223,52 @@ func TestLobbyGone_ForgetsQueuedLobby(t *testing.T) {
 	if _, err := r.st.ActiveMatchOfLobby(context.Background(), b); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("pending match of gone lobby still active: %v", err)
 	}
+}
+
+// abortOn makes the host abort the lobby the first time a command with the given prefix is sent.
+func abortOn(r *rig, lobbyID, prefix string) {
+	done := false
+	r.rcon.onExec = func(c call) {
+		if !done && strings.HasPrefix(c.cmd, prefix) {
+			done = true
+			if err := r.o.Abort(lobbyID, steam(1)); err != nil {
+				panic(err)
+			}
+		}
+	}
+}
+
+func assertAbortedNotRevived(t *testing.T, r *rig, lobbyID string) {
+	t.Helper()
+	snap, _ := r.lobbies.Get(lobbyID)
+	if snap.Status != lobby.StatusWaiting || snap.Connect != "" {
+		t.Fatalf("aborted lobby was revived: status %s connect %q", snap.Status, snap.Connect)
+	}
+	if _, err := r.st.ActiveMatchOfLobby(context.Background(), lobbyID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("aborted match is active again: %v", err)
+	}
+	if st := r.pool.State(); st[0].Busy {
+		t.Fatal("server is still held after the abort")
+	}
+}
+
+func TestAbortDuringLaunch_BeforeLoad_DoesNotLoadTheMatch(t *testing.T) {
+	r := newRig(t, 1)
+	id := r.lobbyWith(t, 1)
+	abortOn(r, id, "sv_password")
+	r.o.Start(id, "de_dust2")
+	for _, c := range r.rcon.calls {
+		if strings.HasPrefix(c.cmd, "matchzy_loadmatch_url") {
+			t.Fatalf("aborted match was loaded on the server: %+v", r.rcon.calls)
+		}
+	}
+	assertAbortedNotRevived(t, r, id)
+}
+
+func TestAbortDuringLaunch_AfterLoad_DoesNotRunTheMatch(t *testing.T) {
+	r := newRig(t, 1)
+	id := r.lobbyWith(t, 1)
+	abortOn(r, id, "matchzy_loadmatch_url")
+	r.o.Start(id, "de_dust2")
+	assertAbortedNotRevived(t, r, id)
 }

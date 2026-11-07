@@ -119,7 +119,14 @@ func (o *Orchestrator) launch(lobbyID string, srv pool.Server) {
 		return err
 	}
 	configURL := fmt.Sprintf("%s/internal/match/%s/config.json?token=%s", o.BaseURL, m.ID, m.Token)
-	for _, cmd := range []string{"sv_password " + password, matchzy.LoadCommand(configURL)} {
+	for i, cmd := range []string{"sv_password " + password, matchzy.LoadCommand(configURL)} {
+		if i > 0 {
+			// The host may have aborted while the first command was in flight.
+			if cur, err := o.Store.GetMatch(ctx, m.ID); err != nil || cur.Status != store.MatchPending {
+				log.Printf("match %s was aborted while starting on %s; not loading it", m.ID, srv.ID)
+				return
+			}
+		}
 		if err := exec(cmd); err != nil {
 			log.Printf("start match %s on %s: %v", m.ID, srv.ID, err)
 			o.Store.SetMatchStatus(ctx, m.ID, store.MatchFailed, o.Now().Unix())
@@ -129,7 +136,10 @@ func (o *Orchestrator) launch(lobbyID string, srv pool.Server) {
 		}
 	}
 	if err := o.Store.SetMatchRunning(ctx, m.ID, srv.ID); err != nil {
-		log.Printf("mark running: %v", err)
+		// Aborted after the config was sent. The abort already freed the lobby and
+		// the server; do not mark the lobby as in a match or touch the pool again.
+		log.Printf("match %s no longer pending after load on %s: %v", m.ID, srv.ID, err)
+		return
 	}
 	o.Lobbies.SetMatchID(lobbyID, m.ID)
 	o.Lobbies.SetLive(lobbyID, fmt.Sprintf("connect %s:%d; password %s", srv.Host, srv.Port, password))

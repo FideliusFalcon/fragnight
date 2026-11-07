@@ -97,9 +97,22 @@ func (s *Store) Roster(ctx context.Context, matchID string) ([]RosterRow, error)
 	return out, rows.Err()
 }
 
+// ErrNotPending is returned by SetMatchRunning when the match is no longer pending
+// (for example it was aborted while it was being loaded onto the server).
+var ErrNotPending = errors.New("match is not pending")
+
+// SetMatchRunning moves a pending match to running on the given server. It never
+// revives a match that has since ended.
 func (s *Store) SetMatchRunning(ctx context.Context, id, serverID string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE matches SET status = ?, server_id = ? WHERE id = ?`, MatchRunning, serverID, id)
-	return err
+	res, err := s.db.ExecContext(ctx, `UPDATE matches SET status = ?, server_id = ? WHERE id = ? AND status = ?`,
+		MatchRunning, serverID, id, MatchPending)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotPending
+	}
+	return nil
 }
 
 // SetMatchStatus ends a match as failed or aborted.
@@ -127,7 +140,9 @@ var ErrNotRunning = errors.New("match is not running")
 type PlayerResult struct {
 	SteamID                                           string
 	Kills, Deaths, Assists, Damage, Headshots, Rounds int
-	EloAfter                                          int
+	// EloDelta is added to the player's current rating (not written as an
+	// absolute value), so a rating change from another match is never lost.
+	EloDelta int
 }
 
 type FinishInput struct {
@@ -155,11 +170,11 @@ func (s *Store) FinishMatch(ctx context.Context, in FinishInput) error {
 	}
 	for _, p := range in.Players {
 		if _, err := tx.ExecContext(ctx, `UPDATE match_players SET kills = ?, deaths = ?, assists = ?, damage = ?,
-			headshots = ?, rounds = ?, elo_after = ? WHERE match_id = ? AND steamid = ?`,
-			p.Kills, p.Deaths, p.Assists, p.Damage, p.Headshots, p.Rounds, p.EloAfter, in.MatchID, p.SteamID); err != nil {
+			headshots = ?, rounds = ?, elo_after = elo_before + ? WHERE match_id = ? AND steamid = ?`,
+			p.Kills, p.Deaths, p.Assists, p.Damage, p.Headshots, p.Rounds, p.EloDelta, in.MatchID, p.SteamID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE players SET elo = ? WHERE steamid = ?`, p.EloAfter, p.SteamID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE players SET elo = elo + ? WHERE steamid = ?`, p.EloDelta, p.SteamID); err != nil {
 			return err
 		}
 	}

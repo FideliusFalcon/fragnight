@@ -94,3 +94,18 @@ func TestPendingMatchOfLobby(t *testing.T) {
 		t.Fatalf("ended match still active: %v", err)
 	}
 }
+
+func TestSetMatchRunning_OnlyFromPending(t *testing.T) {
+	s := open(t)
+	seed(t, s)
+	ctx := context.Background()
+	s.CreateMatch(ctx, newMatch(), []RosterEntry{{"1", 1}, {"2", 2}})
+	s.SetMatchStatus(ctx, "m1", MatchAborted, 5)
+	if err := s.SetMatchRunning(ctx, "m1", "cs2-1"); !errors.Is(err, ErrNotPending) {
+		t.Fatalf("want ErrNotPending, got %v", err)
+	}
+	m, _ := s.GetMatch(ctx, "m1")
+	if m.Status != MatchAborted || m.ServerID != "" {
+		t.Fatalf("aborted match changed: %+v", m)
+	}
+}

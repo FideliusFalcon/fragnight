@@ -96,9 +96,13 @@ func (m *Manager) Tick() {
 		m.publish(s)
 		picks = append(picks, pick{s.id, s.mapName})
 	}
+	afters := m.expireLocked(now)
 	cb := m.OnMapChosen
 	m.mu.Unlock()
 
+	for _, after := range afters {
+		after()
+	}
 	if cb != nil {
 		for _, p := range picks {
 			cb(p.id, p.mapName)
